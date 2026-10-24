@@ -60,3 +60,67 @@ def quote_to_excel(quote: Quote, customer: str = "", vehicle: str = "",
     buffer = BytesIO()
     wb.save(buffer)
     return buffer.getvalue()
+
+
+def _latin1(text: str) -> str:
+    """Las fuentes base del PDF son latin-1: se reemplazan símbolos fuera de ese juego."""
+    text = text.replace("—", "-").replace("×", "x").replace("⚠️", "").replace("⚠", "")
+    return text.encode("latin-1", "replace").decode("latin-1").strip()
+
+
+def quote_to_pdf(quote: Quote, customer: str = "", vehicle: str = "",
+                 when: datetime | None = None) -> bytes:
+    from fpdf import FPDF
+
+    when = when or datetime.now()
+    pdf = FPDF(format="Letter")
+    pdf.set_auto_page_break(True, margin=15)
+    pdf.add_page()
+    pdf.set_fill_color(122, 100, 180)
+    pdf.rect(0, 0, pdf.w, 6, "F")
+    pdf.set_font("Helvetica", "B", 18)
+    pdf.set_text_color(40, 36, 60)
+    pdf.cell(0, 12, _latin1(f"{BUSINESS_NAME} - Cotización"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "I", 9)
+    pdf.set_text_color(170, 40, 40)
+    pdf.multi_cell(0, 5, _latin1(DEMO_NOTICE), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(2)
+    pdf.set_text_color(40, 36, 60)
+    pdf.set_font("Helvetica", "", 10)
+    for label, value in [("Fecha", when.strftime("%Y-%m-%d %H:%M")), ("Cliente", customer or "-"),
+                         ("Vehículo", vehicle or "-"), ("Tarifa por hora", f"${quote.labor_rate:,.2f}"),
+                         ("Margen", f"{quote.margin_pct:.1%}")]:
+        pdf.cell(35, 6, _latin1(label), new_x="RIGHT", new_y="TOP")
+        pdf.cell(0, 6, _latin1(value), new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
+
+    widths = [16, 70, 14, 22, 26, 26, 22]
+    header = ["Código", "Servicio", "Cant.", "Horas est.", "Mano de obra", "Refacciones", "Importe"]
+    pdf.set_font("Helvetica", "B", 9)
+    pdf.set_fill_color(62, 92, 140)
+    pdf.set_text_color(255, 255, 255)
+    for w, h in zip(widths, header):
+        pdf.cell(w, 7, _latin1(h), border=0, align="C", fill=True)
+    pdf.ln()
+    pdf.set_font("Helvetica", "", 9)
+    pdf.set_text_color(40, 36, 60)
+    for i, line in enumerate(quote.lines):
+        pdf.set_fill_color(244, 241, 250) if i % 2 == 0 else pdf.set_fill_color(255, 255, 255)
+        cells = [line.code, line.name[:42], str(line.qty), f"{line.hours:.2f}",
+                 f"${line.labor(quote.labor_rate):,.2f}", f"${line.parts():,.2f}",
+                 f"${quote.line_subtotal(line):,.2f}"]
+        for w, c, align in zip(widths, cells, "LLCRRRR"):
+            pdf.cell(w, 7, _latin1(c), align=align, fill=True)
+        pdf.ln()
+    pdf.ln(3)
+    for label, value in [("Mano de obra", quote.labor), ("Refacciones", quote.parts),
+                         ("Margen", quote.margin), ("Subtotal", quote.subtotal),
+                         (f"IVA {quote.iva_rate:.0%}", quote.iva), ("TOTAL", quote.total)]:
+        pdf.set_font("Helvetica", "B" if label == "TOTAL" else "", 11 if label == "TOTAL" else 10)
+        pdf.cell(sum(widths) - 40, 6, _latin1(label), align="R")
+        pdf.cell(40, 6, f"${value:,.2f}", align="R", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(4)
+    pdf.set_font("Helvetica", "I", 8)
+    pdf.multi_cell(0, 4, _latin1("Fórmula: (horas estándar x tarifa + refacciones) x (1 + margen) x (1 + IVA). "
+                                 "Vigencia: 7 días. Documento de demostración con datos ficticios."))
+    return bytes(pdf.output())

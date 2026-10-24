@@ -23,6 +23,7 @@ class Job:
     processing: float  # horas
     due: float         # horas laborables desde ahora hasta la fecha compromiso
     arrival: float = 0.0  # para FIFO (p. ej. timestamp de recepción)
+    technician: str | None = None  # técnico asignado actualmente (opcional)
 
 
 def sequence(jobs: list[Job], rule: str) -> list[Job]:
@@ -76,5 +77,43 @@ def compare_rules(jobs: list[Job], machines: int = 1,
     rows = []
     for rule in RULES:
         m = metrics(schedule(jobs, rule, machines, machine_names))
+        rows.append({"regla": rule, **m})
+    return pd.DataFrame(rows)
+
+
+def schedule_resources(jobs: list[Job], rule: str, technicians: list[str], bays: list[str],
+                       respect_assignment: bool = True) -> pd.DataFrame:
+    """Programa con dos recursos por orden: un técnico y una bahía.
+
+    Si respect_assignment es True, cada orden va con su técnico asignado (si existe en la lista);
+    si no, con el técnico que se libera primero. La bahía es siempre la que se libera primero.
+    Inicio = máx(técnico libre, bahía libre).
+    """
+    if not technicians or not bays:
+        raise ValueError("Se requiere al menos un técnico y una bahía.")
+    tech_free = {t: 0.0 for t in technicians}
+    bay_free = {b: 0.0 for b in bays}
+    rows = []
+    for pos, job in enumerate(sequence(jobs, rule), start=1):
+        if respect_assignment and job.technician in tech_free:
+            tech = job.technician
+        else:
+            tech = min(technicians, key=lambda t: (tech_free[t], technicians.index(t)))
+        bay = min(bays, key=lambda b: (bay_free[b], bays.index(b)))
+        start = max(tech_free[tech], bay_free[bay])
+        end = start + job.processing
+        tech_free[tech] = bay_free[bay] = end
+        tardiness = max(0.0, end - job.due)
+        rows.append({"posicion": pos, "orden": job.id, "recurso": tech, "bahia": bay,
+                     "proceso_h": job.processing, "entrega_h": job.due, "inicio_h": start,
+                     "fin_h": end, "flujo_h": end, "retraso_h": tardiness, "tarde": tardiness > 1e-9})
+    return pd.DataFrame(rows)
+
+
+def compare_rules_resources(jobs: list[Job], technicians: list[str], bays: list[str],
+                            respect_assignment: bool = True) -> pd.DataFrame:
+    rows = []
+    for rule in RULES:
+        m = metrics(schedule_resources(jobs, rule, technicians, bays, respect_assignment))
         rows.append({"regla": rule, **m})
     return pd.DataFrame(rows)

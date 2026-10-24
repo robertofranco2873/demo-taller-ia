@@ -97,6 +97,61 @@ SERVICES = [
      "jaloneo, alto consumo de gasolina, ralentí inestable", [("R18", 1)], 5),
 ]
 
+# Ficha rápida para el técnico: pasos de cada servicio.
+STEPS = {
+    "S01": ["Levantar el vehículo y drenar el aceite", "Cambiar el filtro de aceite",
+            "Llenar con aceite nuevo y revisar nivel", "Reiniciar el testigo de servicio"],
+    "S02": ["Escanear códigos de falla", "Cambiar bujías, filtros de aire y gasolina",
+            "Cambiar aceite y filtro", "Limpiar cuerpo de aceleración", "Prueba de manejo"],
+    "S03": ["Desmontar llantas delanteras", "Retirar balatas y revisar discos",
+            "Instalar balatas nuevas y lubricar guías", "Asentar balatas en prueba de manejo"],
+    "S04": ["Desmontar llantas traseras", "Retirar balatas o zapatas", "Instalar y ajustar freno de mano",
+            "Prueba de frenado"],
+    "S05": ["Desmontar discos", "Medir espesor mínimo", "Rectificar en torno", "Montar y apretar a torque"],
+    "S06": ["Desmontar caliper y disco", "Limpiar maza", "Instalar disco nuevo", "Apretar a torque y probar"],
+    "S07": ["Revisar fugas", "Purgar desde la rueda más lejana", "Rellenar con DOT4", "Probar pedal"],
+    "S08": ["Montar en alineadora", "Medir convergencia y camber", "Ajustar terminales",
+            "Balancear las cuatro llantas"],
+    "S09": ["Levantar y desmontar llantas", "Comprimir resorte y retirar amortiguador",
+            "Instalar amortiguador nuevo", "Apretar a torque y alinear"],
+    "S10": ["Levantar parte trasera", "Retirar amortiguadores", "Instalar nuevos", "Prueba de rebote"],
+    "S11": ["Revisar juego en dirección", "Cambiar rótulas y terminales", "Apretar y colocar chavetas",
+            "Enviar a alineación"],
+    "S12": ["Identificar bujes dañados", "Desmontar brazos", "Prensar bujes nuevos", "Montar y apretar con peso"],
+    "S13": ["Desmontar transmisión", "Revisar volante motor", "Instalar kit de clutch",
+            "Montar transmisión y ajustar pedal", "Prueba de manejo"],
+    "S14": ["Drenar ATF", "Cambiar filtro y junta del cárter", "Llenar con ATF nuevo",
+            "Revisar nivel en caliente"],
+    "S15": ["Retirar accesorios y cubierta", "Marcar tiempo del motor", "Cambiar banda y tensor",
+            "Verificar marcas y arrancar"],
+    "S16": ["Desarmar motor y medir piezas", "Enviar a rectificar", "Armar con juntas, anillos y metales",
+            "Llenar fluidos y asentar motor", "Prueba de compresión"],
+    "S17": ["Drenar anticongelante", "Retirar bomba de agua", "Instalar bomba y junta",
+            "Llenar y purgar el sistema"],
+    "S18": ["Drenar sistema", "Retirar radiador", "Instalar radiador nuevo", "Llenar, purgar y revisar fugas"],
+    "S19": ["Revisar presiones", "Recuperar gas", "Hacer vacío", "Cargar R-134a y medir temperatura"],
+    "S20": ["Retirar guantera o tapa", "Cambiar filtro de cabina", "Revisar flujo de aire"],
+    "S21": ["Conectar escáner", "Leer y registrar códigos", "Revisar datos en vivo", "Recomendar reparación"],
+    "S22": ["Revisar batería y tierras", "Probar fusibles y relevadores", "Medir consumo parásito",
+            "Reparar terminales"],
+    "S23": ["Probar batería", "Retirar batería vieja", "Instalar y apretar terminales", "Probar carga"],
+    "S24": ["Probar carga del alternador", "Retirar banda y alternador", "Instalar alternador",
+            "Probar voltaje de carga"],
+    "S25": ["Probar marcha", "Retirar motor de arranque", "Instalar reconstruido", "Probar arranque"],
+    "S26": ["Retirar inyectores", "Lavar en banco ultrasónico", "Probar patrón de rocío", "Montar y probar"],
+}
+PART_LEAD_TIME_DAYS = (1, 2, 2, 3, 3, 4, 5, 7)
+DEMO_PASSWORD = "demo123"
+# (usuario, nombre, rol, id de técnico)
+DEMO_USERS = [
+    ("gerente", "Gerente Demo", "admin", None),
+    ("recepcion", "Recepción Demo", "recepcion", None),
+    ("tecnico", "Carlos (técnico demo)", "tecnico", 1),
+    ("lucia", "Lucía (técnica demo)", "tecnico", 2),
+    ("miguel", "Miguel (técnico demo)", "tecnico", 3),
+    ("sofia", "Sofía (técnica demo)", "tecnico", 4),
+]
+
 # (nombre ficticio, especialidad, eficiencia real, peso de asignación)
 TECHNICIANS = [
     ("Técnico A · Carlos (ficticio)", "Motor y transmisión", 1.12, 0.32),
@@ -245,11 +300,18 @@ def seed_database(db_path: Path | None = None, now: datetime | None = None, seed
     if path.exists():
         path.unlink()
     db.init_schema(path)
-    data = generate(now or datetime.now().replace(microsecond=0), seed)
+    from src.security import hash_password
+
+    now = now or datetime.now().replace(microsecond=0)
+    data = generate(now, seed)
+    rng = random.Random(seed + 1)
     with db.connect(path) as conn:
         conn.executemany("INSERT INTO settings(key, value) VALUES (?, ?)",
                          [("labor_rate", str(config.DEFAULT_LABOR_RATE)),
-                          ("margin_pct", str(config.DEFAULT_MARGIN_PCT))])
+                          ("margin_pct", str(config.DEFAULT_MARGIN_PCT)),
+                          ("efficiency_goal", str(config.DEFAULT_EFFICIENCY_GOAL)),
+                          ("service_level", str(config.DEFAULT_SERVICE_LEVEL)),
+                          ("schema_version", db.SCHEMA_VERSION)])
         conn.executemany("INSERT INTO technicians(id, name, specialty) VALUES (?, ?, ?)",
                          [(i + 1, n, s) for i, (n, s, _, _) in enumerate(TECHNICIANS)])
         conn.executemany("INSERT INTO bays(id, name) VALUES (?, ?)",
@@ -259,8 +321,8 @@ def seed_database(db_path: Path | None = None, now: datetime | None = None, seed
         for code, name, cat, obs, rf, allow, kw, parts, _ in SERVICES:
             cur = conn.execute(
                 """INSERT INTO services(code, name, category, observed_avg_min, rating_factor,
-                   allowance_pct, keywords) VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (code, name, cat, obs, rf, allow, kw))
+                   allowance_pct, keywords, steps) VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                (code, name, cat, obs, rf, allow, kw, "\n".join(STEPS.get(code, []))))
             conn.executemany("INSERT INTO service_parts(service_id, part_id, qty) VALUES (?, ?, ?)",
                              [(cur.lastrowid, part_id[p], q) for p, q in parts])
         service_id = {code: sid for sid, code in conn.execute("SELECT id, code FROM services")}
@@ -278,6 +340,45 @@ def seed_database(db_path: Path | None = None, now: datetime | None = None, seed
                line_subtotal, actual_hours) VALUES (?, ?, ?, ?, ?, ?, ?)""",
             [(i["order_id"], service_id[i["service_code"]], i["qty"], i["std_hours"],
               i["parts_cost"], i["line_subtotal"], i["actual_hours"]) for i in data["items"]])
+
+        # Bitácora del cronómetro: las órdenes en proceso quedan "pausadas" con su avance.
+        conn.executemany("INSERT INTO time_logs(order_id, started_at, ended_at) VALUES (?, ?, ?)",
+                         [(o["id"], _iso(o["started_at"]), _iso(now)) for o in data["orders"]
+                          if o["status"] == "en proceso"])
+        # Órdenes cerradas con su tiempo real registrado.
+        conn.executemany("INSERT INTO time_logs(order_id, started_at, ended_at) VALUES (?, ?, ?)",
+                         [(o["id"], _iso(o["started_at"]), _iso(o["finished_at"])) for o in data["orders"]
+                          if o["finished_at"] is not None])
+
+        # Inventario: consumo histórico por orden terminada + inventario inicial que cuadra con el stock actual.
+        recipe = {s[0]: s[7] for s in SERVICES}
+        finished_at = {o["id"]: o["finished_at"] for o in data["orders"] if o["finished_at"] is not None}
+        consumption = []
+        for item in data["items"]:
+            when = finished_at.get(item["order_id"])
+            if when is None:
+                continue
+            for p, q in recipe[item["service_code"]]:
+                consumption.append((part_id[p], _iso(when), -q * item["qty"], "consumo", item["order_id"]))
+        conn.executemany("""INSERT INTO inventory_movements(part_id, created_at, qty, kind, order_id)
+                            VALUES (?, ?, ?, ?, ?)""", consumption)
+        used = {}
+        for pid, _, qty, _, _ in consumption:
+            used[pid] = used.get(pid, 0.0) - qty
+        start = _iso(now - timedelta(days=DAYS_OF_HISTORY + 1))
+        for pid in part_id.values():
+            daily = used.get(pid, 0.0) / (DAYS_OF_HISTORY * 6 / 7)
+            stock = float(max(0, round(daily * rng.uniform(0.5, 20))))  # algunas quedan bajo el punto de reorden
+            lead = rng.choice(PART_LEAD_TIME_DAYS)
+            conn.execute("UPDATE parts SET stock=?, lead_time_days=? WHERE id=?", (stock, lead, pid))
+            conn.execute("""INSERT INTO inventory_movements(part_id, created_at, qty, kind, note)
+                            VALUES (?, ?, ?, 'entrada', 'Inventario inicial y compras del periodo')""",
+                         (pid, start, stock + used.get(pid, 0.0)))
+
+        tech_ids = {i + 1 for i in range(len(TECHNICIANS))}
+        conn.executemany(
+            "INSERT INTO users(username, name, role, password_hash, technician_id) VALUES (?, ?, ?, ?, ?)",
+            [(u, n, r, hash_password(DEMO_PASSWORD), t if t in tech_ids else None) for u, n, r, t in DEMO_USERS])
     return {"orders": len(data["orders"]), "items": len(data["items"])}
 
 

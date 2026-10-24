@@ -19,6 +19,8 @@ WORKDAY_START_HOUR = 9
 IVA_RATE = 0.16
 DEFAULT_LABOR_RATE = 450.0  # MXN por hora estándar
 DEFAULT_MARGIN_PCT = 0.15   # margen sobre mano de obra + refacciones
+DEFAULT_EFFICIENCY_GOAL = 1.0   # meta de eficiencia (estándar / real)
+DEFAULT_SERVICE_LEVEL = 0.95    # nivel de servicio para el stock de seguridad
 
 STATUSES = ["recibida", "en proceso", "terminada", "entregada"]
 PENDING_STATUSES = ["recibida", "en proceso"]
