@@ -129,6 +129,7 @@ def summary(orders: pd.DataFrame, items: pd.DataFrame, bays: list[str], start: d
         "periodo": f"{start.isoformat()} a {end.isoformat()}",
         "ordenes_recibidas": int(len(orders)),
         "ordenes_cerradas": int(len(closed(orders))),
+        "tasa_cierre": round(len(closed(orders)) / len(orders), 3) if len(orders) else 0.0,
         "ingresos_totales": round(float(closed(orders)["total"].sum()), 2),
         "ingresos_por_mes": {r.mes.strftime("%Y-%m"): round(float(r.ingresos), 2) for r in rev.itertuples()},
         "ticket_promedio": round(average_ticket(orders), 2),
