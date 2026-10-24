@@ -460,9 +460,11 @@ def finish_with_timer(order_id: int, now: datetime | None = None, db_path: Path 
     from src.orders import split_actual_hours
 
     now = now or datetime.now()
-    hours = timer_state(order_id, now, db_path)["hours"]
-    if hours <= 0:
+    with connect(db_path) as conn:
+        has_logs = conn.execute("SELECT 1 FROM time_logs WHERE order_id=?", (order_id,)).fetchone()
+    if not has_logs:
         raise ValueError("Inicia el cronómetro antes de terminar la orden.")
+    hours = max(timer_state(order_id, now, db_path)["hours"], 1 / 60)  # mínimo registrable: 1 minuto
     items = load_items(db_path)
     items = items[items["order_id"] == order_id]
     split = split_actual_hours(dict(zip(items["id"].astype(int), items["std_hours"])), hours)

@@ -15,12 +15,6 @@ class AIError(Exception):
 
 def get_api_key() -> str | None:
     key = os.getenv("GROQ_API_KEY", "").strip()
-    if not key:
-        try:  # Streamlit Community Cloud guarda la key en st.secrets
-            import streamlit as st
-            key = str(st.secrets.get("GROQ_API_KEY", "")).strip()
-        except Exception:
-            key = ""
     return key or None
 
 
