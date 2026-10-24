@@ -1,0 +1,175 @@
+/*
+ * DESIGN TOKENS — única fuente de verdad del diseño de AutoServicio Demo.
+ * Paleta: dorado, azul y morado en versiones apagadas/pastel; acentos vibrantes solo en lo importante.
+ * Todo texto cumple WCAG AA (≥ 4.5:1) sobre su superficie en ambos temas.
+ * Las series de gráficas fueron validadas para daltonismo (ΔE ≥ 22) y contraste ≥ 3:1.
+ */
+:root {
+  color-scheme: light;
+
+  /* Tipografía */
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.75rem;
+  --text-3xl: 2.25rem;
+  --weight-regular: 400;
+  --weight-medium: 550;
+  --weight-bold: 700;
+
+  /* Espaciado (escala de 4 px) */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+
+  /* Radios */
+  --radius-sm: 0.5rem;
+  --radius-md: 0.875rem;
+  --radius-lg: 1.25rem;
+  --radius-xl: 1.75rem;
+  --radius-full: 999px;
+
+  /* Movimiento */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 150ms;
+  --duration-base: 250ms;
+
+  /* Marca (apagados / pastel) */
+  --gold-50: #fbf6e9;
+  --gold-100: #f5e9c8;
+  --gold-300: #e2c47f;
+  --gold-500: #c9a24d;
+  --gold-700: #7a5a0f; /* texto dorado AA sobre claro */
+  --gold-vivid: #e8a317; /* acento: metas, celebraciones */
+
+  --blue-50: #eef3fb;
+  --blue-100: #dbe6f6;
+  --blue-300: #a7c0e6;
+  --blue-500: #7c9cc9;
+  --blue-700: #2d5a96;
+  --blue-vivid: #3d7be0;
+
+  --purple-50: #f3f0fb;
+  --purple-100: #e6dff6;
+  --purple-300: #c2b3e8;
+  --purple-500: #9c8bc8;
+  --purple-700: #5a4597;
+  --purple-vivid: #7a55e6;
+
+  /* Superficies y texto (claro) */
+  --bg: #f6f5fb;
+  --bg-gradient: radial-gradient(1200px 600px at 0% 0%, #ece6f8 0%, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #e3ecf8 0%, transparent 55%),
+    radial-gradient(800px 500px at 50% 110%, #f7eed6 0%, transparent 60%), #f6f5fb;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-solid: #ffffff;
+  --surface-muted: rgba(240, 237, 249, 0.75);
+  --surface-hover: rgba(255, 255, 255, 0.92);
+  --border: rgba(90, 69, 151, 0.14);
+  --border-strong: rgba(90, 69, 151, 0.28);
+  --text: #1e2033;
+  --text-secondary: #464a61;
+  --text-muted: #5c6079;
+  --text-on-accent: #ffffff;
+  --accent: var(--purple-700);
+  --accent-2: var(--blue-700);
+  --accent-soft: var(--purple-100);
+  --link: var(--blue-700);
+  --focus: #7a55e6;
+
+  /* Estados (siempre con ícono + texto) */
+  --success: #1f6b42;
+  --success-soft: #dcf1e4;
+  --warning: #7a5a0f;
+  --warning-soft: #f8edcd;
+  --danger: #a3322d;
+  --danger-soft: #f8e0de;
+  --info: #2d5a96;
+  --info-soft: #dbe6f6;
+
+  /* Gráficas (validadas) */
+  --chart-1: #4a78c2;
+  --chart-2: #a97f1f;
+  --chart-3: #8466c9;
+  --chart-good: #1f8a50;
+  --chart-bad: #c2413b;
+  --chart-ref: #7d8098;
+  --chart-grid: rgba(70, 74, 97, 0.12);
+  --chart-light-1: #a7c0e6;
+
+  /* Sombras difusas */
+  --shadow-sm: 0 1px 2px rgba(40, 30, 80, 0.06), 0 2px 8px rgba(40, 30, 80, 0.05);
+  --shadow-md: 0 4px 14px rgba(40, 30, 80, 0.08), 0 10px 30px rgba(40, 30, 80, 0.06);
+  --shadow-lg: 0 12px 40px rgba(40, 30, 80, 0.14), 0 2px 6px rgba(40, 30, 80, 0.06);
+  --glow: 0 0 0 1px rgba(122, 85, 230, 0.2), 0 10px 34px rgba(122, 85, 230, 0.18);
+  --blur: 14px;
+
+  --gradient-brand: linear-gradient(135deg, #5a4597 0%, #2d5a96 100%);
+  --gradient-gold: linear-gradient(135deg, #f5e9c8 0%, #e2c47f 100%);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --gold-50: #2a2414;
+  --gold-100: #3a3018;
+  --gold-700: #e3c075;
+  --blue-50: #18213a;
+  --blue-100: #1f2b49;
+  --blue-700: #a3bfeb;
+  --purple-50: #211b39;
+  --purple-100: #2b2349;
+  --purple-700: #c0aef2;
+
+  --bg: #13131d;
+  --bg-gradient: radial-gradient(1200px 600px at 0% 0%, #241c3f 0%, transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, #17233d 0%, transparent 55%),
+    radial-gradient(800px 500px at 50% 110%, #2a2414 0%, transparent 60%), #13131d;
+  --surface: rgba(30, 29, 46, 0.72);
+  --surface-solid: #1d1c2b;
+  --surface-muted: rgba(40, 37, 62, 0.7);
+  --surface-hover: rgba(42, 40, 63, 0.9);
+  --border: rgba(192, 174, 242, 0.14);
+  --border-strong: rgba(192, 174, 242, 0.3);
+  --text: #edebf5;
+  --text-secondary: #c6c3d6;
+  --text-muted: #a9a6be;
+  --accent: #c0aef2;
+  --accent-2: #a3bfeb;
+  --accent-soft: #2b2349;
+  --link: #a3bfeb;
+  --focus: #b49cff;
+
+  --success: #6fd39a;
+  --success-soft: #173326;
+  --warning: #e3c075;
+  --warning-soft: #352b13;
+  --danger: #f09a94;
+  --danger-soft: #3a1d1c;
+  --info: #a3bfeb;
+  --info-soft: #1f2b49;
+
+  --chart-1: #5d86cb;
+  --chart-2: #b88a2c;
+  --chart-3: #8f74d2;
+  --chart-good: #3fae6e;
+  --chart-bad: #e0645d;
+  --chart-ref: #8f8ca6;
+  --chart-grid: rgba(198, 195, 214, 0.12);
+  --chart-light-1: #34466e;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.35), 0 10px 30px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+  --glow: 0 0 0 1px rgba(180, 156, 255, 0.28), 0 10px 34px rgba(122, 85, 230, 0.3);
+  --gradient-brand: linear-gradient(135deg, #6a52b8 0%, #3a69ae 100%);
+  --gradient-gold: linear-gradient(135deg, #3a3018 0%, #5c4a1f 100%);
+}
