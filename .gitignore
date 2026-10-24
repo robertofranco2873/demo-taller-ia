@@ -1,0 +1,21 @@
+# Entorno y secretos
+.venv/
+.env
+.streamlit/secrets.toml
+
+# Base de datos (se regenera sola con datos ficticios)
+data/*.db
+data/*.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / SO
+.vscode/
+.idea/
+Thumbs.db
+.DS_Store

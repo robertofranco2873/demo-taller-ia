@@ -1,0 +1,80 @@
+"""Secuenciación de órdenes pendientes con reglas de prioridad FIFO, SPT y EDD.
+
+Todas las órdenes están disponibles en t = 0 (ya están en el taller).
+Con m recursos en paralelo, cada orden de la secuencia se asigna al recurso
+que se libera primero (programación por lista).
+
+Tiempo de flujo F_j = C_j (fin de la orden).  Retraso T_j = max(0, C_j − d_j).
+"""
+from dataclasses import dataclass
+
+import pandas as pd
+
+RULES = {
+    "FIFO": "Primero en llegar, primero en atenderse",
+    "SPT": "Menor tiempo de proceso primero",
+    "EDD": "Fecha de entrega más próxima primero",
+}
+
+
+@dataclass
+class Job:
+    id: str
+    processing: float  # horas
+    due: float         # horas laborables desde ahora hasta la fecha compromiso
+    arrival: float = 0.0  # para FIFO (p. ej. timestamp de recepción)
+
+
+def sequence(jobs: list[Job], rule: str) -> list[Job]:
+    """Ordena las órdenes según la regla (desempate estable por llegada)."""
+    if rule == "FIFO":
+        key = lambda j: (j.arrival, j.id)
+    elif rule == "SPT":
+        key = lambda j: (j.processing, j.arrival, j.id)
+    elif rule == "EDD":
+        key = lambda j: (j.due, j.arrival, j.id)
+    else:
+        raise ValueError(f"Regla desconocida: {rule}")
+    return sorted(jobs, key=key)
+
+
+def schedule(jobs: list[Job], rule: str, machines: int = 1,
+             machine_names: list[str] | None = None) -> pd.DataFrame:
+    """Programa la secuencia y calcula inicio, fin, flujo y retraso de cada orden."""
+    if machines < 1:
+        raise ValueError("Se requiere al menos un recurso.")
+    names = machine_names or [f"Recurso {i + 1}" for i in range(machines)]
+    free = [0.0] * machines
+    rows = []
+    for pos, job in enumerate(sequence(jobs, rule), start=1):
+        m = min(range(machines), key=lambda i: (free[i], i))
+        start = free[m]
+        end = start + job.processing
+        free[m] = end
+        tardiness = max(0.0, end - job.due)
+        rows.append({"posicion": pos, "orden": job.id, "recurso": names[m],
+                     "proceso_h": job.processing, "entrega_h": job.due,
+                     "inicio_h": start, "fin_h": end, "flujo_h": end,
+                     "retraso_h": tardiness, "tarde": tardiness > 1e-9})
+    return pd.DataFrame(rows)
+
+
+def metrics(schedule_df: pd.DataFrame) -> dict:
+    if schedule_df.empty:
+        return {"flujo_promedio_h": 0.0, "retraso_promedio_h": 0.0, "ordenes_tarde": 0, "makespan_h": 0.0}
+    return {
+        "flujo_promedio_h": float(schedule_df["flujo_h"].mean()),
+        "retraso_promedio_h": float(schedule_df["retraso_h"].mean()),
+        "ordenes_tarde": int(schedule_df["tarde"].sum()),
+        "makespan_h": float(schedule_df["fin_h"].max()),
+    }
+
+
+def compare_rules(jobs: list[Job], machines: int = 1,
+                  machine_names: list[str] | None = None) -> pd.DataFrame:
+    """Tabla comparativa de las tres reglas."""
+    rows = []
+    for rule in RULES:
+        m = metrics(schedule(jobs, rule, machines, machine_names))
+        rows.append({"regla": rule, **m})
+    return pd.DataFrame(rows)
