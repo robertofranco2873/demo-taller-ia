@@ -71,7 +71,7 @@ funciones puras con pruebas en `tests/`.
 Requisitos: Python 3.12 y Git.
 
 ```powershell
-git clone https://github.com/<tu-usuario>/demo-taller-ia.git
+git clone https://github.com/robertofranco2873/demo-taller-ia.git
 cd demo-taller-ia
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1          # si falla: Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
