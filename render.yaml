@@ -1,17 +1,24 @@
-# Blueprint de Render (plan gratis). En Render: New → Blueprint → elige este repositorio.
+# Blueprint de Render. En Render: New → Blueprint → elige este repositorio.
+# Plan gratuito: el servicio "se duerme" tras 15 min sin uso y tarda ~1 min en despertar.
 services:
   - type: web
     name: demo-taller-ia
     runtime: docker
     plan: free
+    region: oregon
     dockerfilePath: ./Dockerfile
+    dockerContext: .
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:
+      - key: DEMO_MODE
+        value: "true" # demo pública: bloquea acciones destructivas y restablece la base cada 24 h
+      - key: APP_TZ
+        value: America/Mexico_City # "hoy" y "ahora" del taller (el servidor corre en UTC)
       - key: JWT_SECRET
-        generateValue: true # Render genera un secreto aleatorio
+        generateValue: true # Render genera un secreto aleatorio y lo conserva entre despliegues
       - key: GROQ_API_KEY
-        sync: false # opcional: pégala en el panel de Render; sin ella la IA se oculta
+        sync: false # secreta: Render la pide al crear el Blueprint; nunca va en el repo
       - key: GROQ_MODEL
         value: qwen/qwen3.8-27b
       - key: BCRYPT_ROUNDS
