@@ -111,7 +111,7 @@ MONTH_FACTOR = {1: 0.80, 2: 0.85, 3: 0.95, 4: 0.95, 5: 1.00, 6: 0.90,
 WEEKDAY_FACTOR = {0: 1.30, 1: 1.00, 2: 0.95, 3: 0.95, 4: 1.10, 5: 0.70}
 BASE_ORDERS_PER_DAY = 2.35
 RECENT_BOOST_DAYS = 8      # pico de demanda reciente para tener backlog
-RECENT_BOOST = 2.6
+RECENT_BOOST = 2.2
 RECENT_WAIT_PROB = 0.40    # órdenes recientes esperando autorización o refacciones
 RECENT_TECH_WEIGHTS = [0.45, 0.25, 0.18, 0.12]  # el técnico A concentra la carga reciente
 
@@ -195,7 +195,8 @@ def generate(now: datetime, seed: int = SEED) -> dict:
             delivered = add_work_hours(finish, rng.uniform(0.5, 10))
             tech_free[t], bay_free[b] = finish, finish
 
-            promise_days = math.ceil(quote.hours / 6) + rng.choice([0, 1])
+            # La promesa al cliente incluye la espera por refacciones; los retrasos salen de la cola.
+            promise_days = math.ceil(quote.hours / 6) + int(wait_parts // config.HOURS_PER_DAY) + rng.choice([0, 1, 1, 2])
             due = add_workdays(created.date(), promise_days)
 
             if start > now:
