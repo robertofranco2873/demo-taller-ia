@@ -15,6 +15,8 @@ RULES = {
     "SPT": "Menor tiempo de proceso primero",
     "EDD": "Fecha de entrega más próxima primero",
 }
+MANUAL = "MANUAL"
+MANUAL_LABEL = "Prioridad asignada por el usuario"
 
 
 @dataclass
@@ -24,16 +26,22 @@ class Job:
     due: float         # horas laborables desde ahora hasta la fecha compromiso
     arrival: float = 0.0  # para FIFO (p. ej. timestamp de recepción)
     technician: str | None = None  # técnico asignado actualmente (opcional)
+    priority: float | None = None  # prioridad manual (1 = primero); None = al final
 
 
 def sequence(jobs: list[Job], rule: str) -> list[Job]:
-    """Ordena las órdenes según la regla (desempate estable por llegada)."""
+    """Ordena las órdenes según la regla (desempate estable por llegada).
+
+    MANUAL: por la prioridad asignada; las órdenes sin prioridad van al final, por llegada.
+    """
     if rule == "FIFO":
         key = lambda j: (j.arrival, j.id)
     elif rule == "SPT":
         key = lambda j: (j.processing, j.arrival, j.id)
     elif rule == "EDD":
         key = lambda j: (j.due, j.arrival, j.id)
+    elif rule == MANUAL:
+        key = lambda j: (j.priority is None, j.priority if j.priority is not None else 0, j.arrival, j.id)
     else:
         raise ValueError(f"Regla desconocida: {rule}")
     return sorted(jobs, key=key)
@@ -111,9 +119,9 @@ def schedule_resources(jobs: list[Job], rule: str, technicians: list[str], bays:
 
 
 def compare_rules_resources(jobs: list[Job], technicians: list[str], bays: list[str],
-                            respect_assignment: bool = True) -> pd.DataFrame:
+                            respect_assignment: bool = True, include_manual: bool = False) -> pd.DataFrame:
     rows = []
-    for rule in RULES:
+    for rule in [*RULES, *([MANUAL] if include_manual else [])]:
         m = metrics(schedule_resources(jobs, rule, technicians, bays, respect_assignment))
         rows.append({"regla": rule, **m})
     return pd.DataFrame(rows)

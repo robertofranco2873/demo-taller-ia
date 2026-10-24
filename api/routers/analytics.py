@@ -1,16 +1,17 @@
 from datetime import date, datetime, timedelta
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.core import ADMIN, bad_request, clean, parse_range, records, require_roles
 from src import analytics, db, kpis
 from src.capacity import weekly_load
 from src.config import PENDING_STATUSES
 from src.pareto import pareto_table, vital_few
-from src.sequencing import RULES, Job, compare_rules_resources, schedule_resources
+from src.sequencing import MANUAL, MANUAL_LABEL, RULES, Job, compare_rules_resources, schedule_resources
 from src.spc import control_chart, xbar_r_chart
-from src.workcalendar import add_work_hours, week_start, work_hours_until
+from src.workcalendar import add_work_hours, week_start, work_day_segments, work_hours_until
 
 router = APIRouter(prefix="/api", tags=["Análisis (administrador)"])
 admin_only = Depends(require_roles(ADMIN))
@@ -155,55 +156,92 @@ def capacity(week: date | None = None, _: dict = admin_only):
 
 # ---------- secuenciación ----------
 
-def _jobs(mode: str, technician_id: int | None):
+def _jobs(mode: str, technician_id: int | None, priorities: dict[str, int] | None):
+    """Órdenes pendientes como trabajos. Prioridad: la enviada por el usuario o la guardada en la orden."""
     orders = db.load_orders()
     pending = orders[orders["status"].isin(PENDING_STATUSES)]
     techs = db.load_technicians()
     names = techs["name"].tolist()
     if mode == "technician":
-        if technician_id is None:
-            raise HTTPException(400, "Indica el técnico.")
+        if technician_id is None or technician_id not in set(techs["id"]):
+            raise HTTPException(400, "Indica un técnico válido.")
         name = techs.set_index("id").loc[technician_id, "name"]
         pending = pending[pending["technician"] == name]
         names = [name]
     now = add_work_hours(datetime.now().replace(microsecond=0), 0)
+
+    def prio(r):
+        if priorities is not None:
+            return priorities.get(r.folio)
+        return None if pd.isna(r.priority) else float(r.priority)
+
     jobs = [Job(r.folio, float(r.std_hours), work_hours_until(now, r.due_date), r.created_at.timestamp(),
-                r.technician) for r in pending.itertuples()]
+                r.technician, prio(r)) for r in pending.itertuples()]
     return jobs, names, now, pending
 
 
-def _schedule(rule: str, mode: str, technician_id: int | None):
-    if rule not in RULES:
+def _schedule(rule: str, mode: str, technician_id: int | None, priorities: dict[str, int] | None = None):
+    if rule not in RULES and rule != MANUAL:
         raise HTTPException(400, f"Regla desconocida: {rule}")
-    jobs, names, now, pending = _jobs(mode, technician_id)
+    jobs, names, now, pending = _jobs(mode, technician_id, priorities)
     bays = db.load_bays()["name"].tolist()
     respect = mode != "shop"
     sched = schedule_resources(jobs, rule, names, bays, respect) if jobs else None
     return jobs, names, bays, now, pending, respect, sched
 
 
-@router.get("/sequencing", summary="Comparativa FIFO/SPT/EDD y programa (Gantt)")
-def sequencing(rule: str = "EDD", mode: str = Query("assigned", pattern="^(assigned|shop|technician)$"),
-               technician_id: int | None = None, _: dict = admin_only):
-    jobs, names, bays, now, pending, respect, sched = _schedule(rule, mode, technician_id)
+def _sequencing_response(rule: str, mode: str, technician_id: int | None, priorities: dict[str, int] | None):
+    jobs, names, bays, now, pending, respect, sched = _schedule(rule, mode, technician_id, priorities)
+    rules = {**RULES, MANUAL: MANUAL_LABEL}
+    has_manual = any(j.priority is not None for j in jobs)
     if not jobs:
-        return {"jobs": 0, "comparison": [], "schedule": [], "now": now.isoformat(), "rules": RULES}
+        return {"jobs": 0, "comparison": [], "schedule": [], "days": [], "now": now.isoformat(), "rules": rules,
+                "technicians": names, "has_manual": False}
+    info = pending.set_index("folio")
     sched["inicio"] = [add_work_hours(now, h).isoformat() for h in sched["inicio_h"]]
     sched["fin"] = [add_work_hours(now, h).isoformat() for h in sched["fin_h"]]
-    return clean({"jobs": len(jobs), "hours": sum(j.processing for j in jobs), "now": now, "rules": RULES,
-                  "comparison": records(compare_rules_resources(jobs, names, bays, respect)),
-                  "schedule": records(sched), "mode": mode, "rule": rule})
+    sched["compromiso"] = [info.loc[f, "due_date"] for f in sched["orden"]]
+    sched["cliente"] = [info.loc[f, "customer"] for f in sched["orden"]]
+    sched["vehiculo"] = [info.loc[f, "vehicle"] for f in sched["orden"]]
+    sched["estado"] = [info.loc[f, "status"] for f in sched["orden"]]
+    sched["prioridad_guardada"] = [None if pd.isna(info.loc[f, "priority"]) else int(info.loc[f, "priority"])
+                                   for f in sched["orden"]]
+    horizon = float(sched["fin_h"].max())
+    dias = ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"]
+    days = [{**d, "label": f"{dias[d['date'].weekday()]} {d['date']:%d/%m}"} for d in work_day_segments(now, horizon)]
+    return clean({"jobs": len(jobs), "hours": sum(j.processing for j in jobs), "now": now, "rules": rules,
+                  "comparison": records(compare_rules_resources(jobs, names, bays, respect, include_manual=has_manual)),
+                  "schedule": records(sched), "days": days, "technicians": names, "has_manual": has_manual,
+                  "mode": mode, "rule": rule})
 
 
-class ApplyIn(BaseModel):
+@router.get("/sequencing", summary="Comparativa FIFO/SPT/EDD (y manual si hay prioridades guardadas) y programa")
+def sequencing(rule: str = "EDD", mode: str = Query("assigned", pattern="^(assigned|shop|technician)$"),
+               technician_id: int | None = None, _: dict = admin_only):
+    return _sequencing_response(rule, mode, technician_id, None)
+
+
+class SimulateIn(BaseModel):
+    rule: str = MANUAL
+    mode: str = Field("assigned", pattern="^(assigned|shop|technician)$")
+    technician_id: int | None = None
+    priorities: dict[str, int] | None = Field(None, description="{folio: prioridad}; 1 = primero")
+
+
+@router.post("/sequencing/simulate", summary="Simula el programa con prioridades manuales (no guarda nada)")
+def sequencing_simulate(body: SimulateIn, _: dict = admin_only):
+    return _sequencing_response(body.rule, body.mode, body.technician_id, body.priorities)
+
+
+class ApplyIn(SimulateIn):
     rule: str = "EDD"
     mode: str = "shop"
-    technician_id: int | None = None
 
 
-@router.post("/sequencing/apply", summary="Reasignar: aplica la propuesta (técnico, bahía y fecha)")
+@router.post("/sequencing/apply", summary="Reasignar: aplica la propuesta (técnico, bahía, fecha y prioridad)")
 def sequencing_apply(body: ApplyIn, _: dict = admin_only):
-    jobs, names, bays, now, pending, respect, sched = _schedule(body.rule, body.mode, body.technician_id)
+    jobs, names, bays, now, pending, respect, sched = _schedule(body.rule, body.mode, body.technician_id,
+                                                                body.priorities)
     if sched is None:
         return {"updated": 0}
     tech_id = dict(zip(db.load_technicians()["name"], db.load_technicians()["id"]))
@@ -211,7 +249,8 @@ def sequencing_apply(body: ApplyIn, _: dict = admin_only):
     order_id = dict(zip(pending["folio"], pending["id"]))
     n = db.apply_assignments([
         {"order_id": int(order_id[r.orden]), "technician_id": int(tech_id[r.recurso]),
-         "bay_id": int(bay_id[r.bahia]), "scheduled_date": add_work_hours(now, r.inicio_h).date()}
+         "bay_id": int(bay_id[r.bahia]), "scheduled_date": add_work_hours(now, r.inicio_h).date(),
+         "priority": int(r.posicion)}
         for r in sched.itertuples()])
     return {"updated": n}
 

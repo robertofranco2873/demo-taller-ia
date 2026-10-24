@@ -222,7 +222,7 @@ def test_sequencing_and_apply(client, tokens):
     h = tokens["admin"]
     for mode in ["assigned", "shop"]:
         s = client.get(f"/api/sequencing?mode={mode}&rule=SPT", headers=h).json()
-        assert len(s["comparison"]) == 3 and s["schedule"][0]["inicio"]
+        assert {"FIFO", "SPT", "EDD"} <= {r["regla"] for r in s["comparison"]} and s["schedule"][0]["inicio"]
     one = client.get("/api/sequencing?mode=technician&technician_id=1", headers=h).json()
     assert {r["recurso"] for r in one["schedule"]} == {db.load_technicians().iloc[0]["name"]}
     r = client.post("/api/sequencing/apply", headers=h, json={"rule": "EDD", "mode": "shop"})
@@ -341,3 +341,35 @@ def test_openapi_documented(client):
     spec = client.get("/openapi.json").json()
     assert spec["info"]["title"] == "AutoServicio Demo API"
     assert "/api/pareto/service/{service_id}" in spec["paths"]
+
+
+def test_sequencing_manual_priorities(client, tokens):
+    h = tokens["admin"]
+    base = client.get("/api/sequencing?mode=shop&rule=EDD", headers=h).json()
+    assert base["days"] and base["days"][0]["label"][:3] in {"lun", "mar", "mié", "jue", "vie", "sáb"}
+    folios = [r["orden"] for r in sorted(base["schedule"], key=lambda r: r["posicion"])]
+    reversed_prio = {f: i + 1 for i, f in enumerate(reversed(folios))}
+    sim = client.post("/api/sequencing/simulate", headers=h,
+                      json={"rule": "MANUAL", "mode": "shop", "priorities": reversed_prio}).json()
+    first = min(sim["schedule"], key=lambda r: r["posicion"])
+    assert first["orden"] == folios[-1]
+    assert [r["regla"] for r in sim["comparison"]][-1] == "MANUAL"
+
+    r = client.post("/api/sequencing/apply", headers=h,
+                    json={"rule": "MANUAL", "mode": "shop", "priorities": reversed_prio})
+    assert r.json()["updated"] == len(folios)
+    stored = client.get("/api/sequencing?mode=shop&rule=MANUAL", headers=h).json()
+    assert stored["has_manual"] is True
+    assert min(stored["schedule"], key=lambda r: r["posicion"])["orden"] == folios[-1]
+
+
+def test_my_day_follows_stored_sequence(client, tokens):
+    day = client.get("/api/me/day", headers=tokens["tecnico"]).json()["orders"]
+    seqs = [o["sequence"] for o in day if o["sequence"] is not None]
+    assert seqs == sorted(seqs)
+
+
+def test_simulate_rejects_unknown_rule(client, tokens):
+    r = client.post("/api/sequencing/simulate", headers=tokens["admin"], json={"rule": "LPT"})
+    assert r.status_code == 400
+    assert client.post("/api/sequencing/simulate", headers=tokens["recepcion"], json={}).status_code == 403

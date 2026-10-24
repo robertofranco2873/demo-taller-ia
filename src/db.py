@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS orders (
     technician_id INTEGER REFERENCES technicians(id), bay_id INTEGER REFERENCES bays(id),
     labor_rate REAL NOT NULL, margin_pct REAL NOT NULL, std_hours REAL NOT NULL,
     labor REAL NOT NULL, parts REAL NOT NULL, subtotal REAL NOT NULL, iva REAL NOT NULL,
-    total REAL NOT NULL, notes TEXT DEFAULT '');
+    total REAL NOT NULL, notes TEXT DEFAULT '', priority INTEGER);
 CREATE TABLE IF NOT EXISTS order_items (
     id INTEGER PRIMARY KEY, order_id INTEGER NOT NULL REFERENCES orders(id),
     service_id INTEGER NOT NULL REFERENCES services(id), qty INTEGER NOT NULL,
@@ -95,9 +95,18 @@ def is_empty(db_path: Path | None = None) -> bool:
             return True
 
 
+def migrate(db_path: Path | None = None) -> None:
+    """Cambios de esquema compatibles que no requieren regenerar los datos."""
+    with connect(db_path) as conn:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(orders)")}
+        if "priority" not in cols:  # prioridad manual de secuenciación
+            conn.execute("ALTER TABLE orders ADD COLUMN priority INTEGER")
+
+
 def ensure_database(db_path: Path | None = None) -> bool:
     """Crea y siembra la base si no existe (o es de la V1). Regresa True si la creó."""
     if not is_empty(db_path):
+        migrate(db_path)
         return False
     from src.seed import seed_database
     seed_database(db_path)
@@ -542,15 +551,15 @@ def load_customers(db_path: Path | None = None) -> pd.DataFrame:
 
 
 def apply_assignments(assignments: list[dict], db_path: Path | None = None) -> int:
-    """assignments: [{order_id, technician_id, bay_id, scheduled_date}]; solo afecta órdenes pendientes."""
+    """assignments: [{order_id, technician_id, bay_id, scheduled_date, priority?}]; solo órdenes pendientes."""
     placeholders = ",".join("?" * len(config.PENDING_STATUSES))
     with connect(db_path) as conn:
         n = 0
         for a in assignments:
             cur = conn.execute(
-                f"UPDATE orders SET technician_id=?, bay_id=?, scheduled_date=? "
+                f"UPDATE orders SET technician_id=?, bay_id=?, scheduled_date=?, priority=? "
                 f"WHERE id=? AND status IN ({placeholders})",
-                (a["technician_id"], a["bay_id"], a["scheduled_date"].isoformat(), a["order_id"],
-                 *config.PENDING_STATUSES))
+                (a["technician_id"], a["bay_id"], a["scheduled_date"].isoformat(), a.get("priority"),
+                 a["order_id"], *config.PENDING_STATUSES))
             n += cur.rowcount
         return n

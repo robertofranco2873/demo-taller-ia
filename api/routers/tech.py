@@ -1,6 +1,7 @@
 """Vista "Mi día" del técnico: sus órdenes, cronómetro e indicadores personales."""
 from datetime import date
 
+import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.core import TECNICO, bad_request, clean, records, require_roles
@@ -38,12 +39,15 @@ def my_day(user: dict = tech_only):
             "id": o.id, "folio": o.folio, "status": o.status, "customer": o.customer, "vehicle": o.vehicle,
             "bay": o.bay, "due_date": o.due_date, "scheduled_date": o.scheduled_date, "std_hours": o.std_hours,
             "notes": o.notes, "priority": priority(o.due_date, today), "timer": db.timer_state(int(o.id)),
+            "sequence": None if pd.isna(o.priority) else int(o.priority),
             "services": [{"id": int(i.service_id), "code": i.service_code, "name": i.service_name, "qty": int(i.qty),
                           "std_hours": float(i.std_hours),
                           "steps": [s for s in (services.loc[i.service_id, "steps"] or "").split("\n") if s]}
                          for i in its.itertuples()],
         })
-    result.sort(key=lambda r: (PRIORITY_ORDER[r["priority"]], r["due_date"], r["scheduled_date"]))
+    # Si el gerente fijó una secuencia (Secuenciación → Reasignar), manda; si no, vencidas → hoy → próximas.
+    result.sort(key=lambda r: (r["sequence"] is None, r["sequence"] or 0, PRIORITY_ORDER[r["priority"]],
+                               r["due_date"], r["scheduled_date"]))
     finished_today = orders[(orders["technician_id"] == user["technician_id"])
                             & (orders["finished_at"].dt.date == today)]
     return clean({"date": today, "technician": user["technician"], "orders": result,

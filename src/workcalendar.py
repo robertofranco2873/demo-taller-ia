@@ -59,6 +59,28 @@ def add_work_hours(dt: datetime, hours: float, hours_per_day: float = HOURS_PER_
             return current
 
 
+def work_day_segments(now: datetime, horizon_h: float, hours_per_day: float = HOURS_PER_DAY) -> list[dict]:
+    """Divide el horizonte (horas laborables desde `now`) en días.
+
+    Cada segmento: fecha, inicio y fin en horas laborables desde `now` y la hora de reloj
+    con la que arranca (el primer día puede empezar a media jornada).
+    """
+    start = add_work_hours(now, 0)
+    day_start = start.replace(hour=WORKDAY_START_HOUR, minute=0, second=0, microsecond=0)
+    first_len = hours_per_day - (start - day_start).total_seconds() / 3600
+    segments, offset, current = [], 0.0, start
+    length = first_len
+    clock = WORKDAY_START_HOUR + (hours_per_day - first_len)
+    while offset < horizon_h - 1e-9 or not segments:
+        segments.append({"date": current.date(), "start_h": offset, "end_h": offset + length, "start_clock": clock})
+        offset += length
+        current = add_work_hours(current.replace(hour=WORKDAY_START_HOUR, minute=0, second=0, microsecond=0),
+                                 hours_per_day)
+        current = add_work_hours(current, 0)  # siguiente día laborable a las 9:00
+        length, clock = hours_per_day, float(WORKDAY_START_HOUR)
+    return segments
+
+
 def work_hours_until(now: datetime, due: date, hours_per_day: float = HOURS_PER_DAY) -> float:
     """Horas laborables desde `now` hasta el cierre del día `due` (negativo si ya venció)."""
     day_start = now.replace(hour=WORKDAY_START_HOUR, minute=0, second=0, microsecond=0)

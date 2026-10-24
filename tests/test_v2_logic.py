@@ -252,3 +252,39 @@ def test_settings_validation(path):
     assert s["efficiency_goal"] == pytest.approx(1.1)
     with pytest.raises(ValueError):
         db.save_settings(500, 0.2, 3.0, db_path=path)
+
+
+# ---------- prioridad manual y días del Gantt ----------
+
+def test_manual_sequence_by_priority():
+    from src.sequencing import MANUAL, sequence
+    jobs = [Job("A", 1, 5, 1, priority=2), Job("B", 1, 5, 2, priority=1), Job("C", 1, 5, 0)]
+    assert [j.id for j in sequence(jobs, MANUAL)] == ["B", "A", "C"]  # sin prioridad va al final
+
+
+def test_compare_includes_manual():
+    jobs = [Job("A", 2, 4, 1, "T1", 2), Job("B", 1, 4, 2, "T1", 1)]
+    table = compare_rules_resources(jobs, ["T1"], ["B1"], include_manual=True)
+    assert table["regla"].tolist() == ["FIFO", "SPT", "EDD", "MANUAL"]
+
+
+def test_work_day_segments():
+    from src.workcalendar import work_day_segments
+    segs = work_day_segments(datetime(2026, 10, 24, 13, 0), 20)  # sábado 13:00
+    assert segs[0]["date"] == date(2026, 10, 24)
+    assert segs[0]["end_h"] == pytest.approx(4) and segs[0]["start_clock"] == pytest.approx(13)
+    assert segs[1]["date"] == date(2026, 10, 26)  # salta el domingo
+    assert segs[1]["start_h"] == pytest.approx(4) and segs[1]["end_h"] == pytest.approx(12)
+    assert segs[-1]["end_h"] >= 20
+
+
+def test_migration_adds_priority_column(tmp_path):
+    import sqlite3
+    p = tmp_path / "old.db"
+    seed_database(p, now=NOW)
+    conn = sqlite3.connect(p)
+    conn.execute("ALTER TABLE orders DROP COLUMN priority")
+    conn.commit()
+    conn.close()
+    assert not db.ensure_database(p)  # no regenera: migra
+    assert "priority" in db.load_orders(p).columns

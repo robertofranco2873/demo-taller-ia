@@ -110,35 +110,91 @@ export function controlOption(c: ChartColors, opts: {
   };
 }
 
-/** Gantt (serie custom): una fila por técnico, barra por orden, roja si sale tarde. */
-export function ganttOption(c: ChartColors, rows: { resource: string; folio: string; start: number; end: number; late: boolean; bay: string }[], resources: string[]): EChartsOption {
+export interface GanttDay { label: string; start_h: number; end_h: number; start_clock: number }
+export interface GanttBar {
+  resource: string; folio: string; start: number; end: number; late: boolean; bay: string;
+  priority: number; inicio: string; fin: string; customer: string;
+}
+
+/**
+ * Gantt por días: eje X en horas laborables (sin noches ni domingos), una franja por día
+ * con su nombre arriba y horas de reloj en el eje. Barras rojas = tarde. `selected` resalta una orden.
+ */
+export function ganttDaysOption(c: ChartColors, bars: GanttBar[], resources: string[], days: GanttDay[],
+  selected: string | null): EChartsOption {
+  const max = days.length ? days[days.length - 1].end_h : 8;
+  const clockAt = (x: number) => {
+    const d = days.find((s) => x >= s.start_h - 1e-6 && x <= s.end_h + 1e-6) ?? days[days.length - 1];
+    if (!d) return "";
+    const h = d.start_clock + (x - d.start_h);
+    const hh = Math.floor(h + 1e-6);
+    const mm = Math.round((h - hh) * 60);
+    return `${hh}:${String(mm).padStart(2, "0")}`;
+  };
+  const fmt = (iso: string) => new Date(iso).toLocaleString("es-MX", { weekday: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
   return {
     ...baseOption(c),
     tooltip: { ...baseOption(c).tooltip, formatter: (p: unknown) => {
-      const d = (p as { data: { raw: (typeof rows)[number] } }).data.raw;
-      const f = (t: number) => new Date(t).toLocaleString("es-MX", { weekday: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-      return `<b>${d.folio}</b> · ${d.bay}<br/>${f(d.start)} → ${f(d.end)}<br/>${d.late ? '<span style="color:' + c.bad + '">⚠ Tarde</span>' : "A tiempo"}`;
+      const d = (p as { data?: { raw?: GanttBar } }).data?.raw;
+      if (!d) return "";
+      return `<b>#${d.priority} · ${d.folio}</b><br/>${d.customer} · ${d.bay}<br/>${fmt(d.inicio)} → ${fmt(d.fin)}<br/>`
+        + (d.late ? `<span style="color:${c.bad}">⚠ Sale tarde</span>` : "A tiempo");
     } },
-    grid: { left: 8, right: 16, top: 16, bottom: 40, containLabel: true },
-    dataZoom: [{ type: "inside", filterMode: "weakFilter" }, { type: "slider", height: 16, bottom: 6, filterMode: "weakFilter" }],
-    xAxis: { type: "time", ...axisStyle(c) },
-    yAxis: { type: "category", data: resources, inverse: true, ...axisStyle(c), axisLabel: { ...axisStyle(c).axisLabel, width: 130, overflow: "truncate" } },
-    series: [{
-      type: "custom",
-      renderItem: ((params: unknown, api: unknown) => {
-        const a = api as { value: (i: number) => number; coord: (v: [number, number]) => [number, number]; size: (v: [number, number]) => [number, number]; style: () => object };
-        const cat = a.value(0);
-        const start = a.coord([a.value(1), cat]);
-        const end = a.coord([a.value(2), cat]);
-        const h = a.size([0, 1])[1] * 0.56;
-        const p = params as { coordSys: { x: number; y: number; width: number; height: number } };
-        const x = Math.max(start[0], p.coordSys.x);
-        const w = Math.min(end[0], p.coordSys.x + p.coordSys.width) - x;
-        if (w <= 0) return null;
-        return { type: "rect", shape: { x, y: start[1] - h / 2, width: w, height: h, r: 4 }, style: { ...a.style(), stroke: c.surface, lineWidth: 1.5 } };
-      }) as never,
-      encode: { x: [1, 2], y: 0 },
-      data: rows.map((r) => ({ value: [resources.indexOf(r.resource), r.start, r.end], raw: r, itemStyle: { color: r.late ? c.bad : c.series[0] } })),
-    }],
+    grid: { left: 8, right: 44, top: 40, bottom: 44, containLabel: true },
+    dataZoom: [
+      { type: "inside", xAxisIndex: 0, filterMode: "weakFilter", startValue: 0, endValue: Math.min(max, 40) },
+      { type: "slider", xAxisIndex: 0, height: 16, bottom: 6, filterMode: "weakFilter", startValue: 0, endValue: Math.min(max, 40),
+        labelFormatter: (v: number) => days.find((d) => v >= d.start_h && v <= d.end_h)?.label ?? "" },
+    ],
+    xAxis: {
+      type: "value", min: 0, max, interval: 2, ...axisStyle(c), splitLine: { show: false },
+      axisLabel: { ...axisStyle(c).axisLabel, formatter: (v: number) => clockAt(v) },
+    },
+    yAxis: { type: "category", data: resources, inverse: true, ...axisStyle(c),
+      axisLabel: { ...axisStyle(c).axisLabel, width: 130, overflow: "truncate" } },
+    series: [
+      {
+        type: "custom",
+        name: "Órdenes",
+        renderItem: ((params: unknown, api: unknown) => {
+          const a = api as { value: (i: number) => number; coord: (v: [number, number]) => [number, number]; size: (v: [number, number]) => [number, number] };
+          const p = params as { dataIndex: number; coordSys: { x: number; y: number; width: number; height: number } };
+          const bar = bars[p.dataIndex];
+          const cat = a.value(0);
+          const start = a.coord([a.value(1), cat]);
+          const end = a.coord([a.value(2), cat]);
+          const h = a.size([0, 1])[1] * 0.6;
+          const x = Math.max(start[0], p.coordSys.x);
+          const w = Math.min(end[0], p.coordSys.x + p.coordSys.width) - x;
+          if (w <= 0) return null;
+          const dim = selected !== null && selected !== bar.folio;
+          const isSel = selected === bar.folio;
+          const rect = {
+            type: "rect", shape: { x, y: start[1] - h / 2, width: w, height: h, r: 5 },
+            style: { fill: bar.late ? c.bad : c.series[0], opacity: dim ? 0.35 : 1, stroke: isSel ? c.series[1] : c.surface, lineWidth: isSel ? 3 : 1.5 },
+          };
+          const label = w > 34 ? {
+            type: "text", style: { text: w > 90 ? `#${bar.priority} ${bar.folio}` : `#${bar.priority}`, x: x + 6, y: start[1],
+              verticalAlign: "middle", fill: "#ffffff", font: "600 11px system-ui", opacity: dim ? 0.6 : 1 },
+          } : null;
+          return { type: "group", children: label ? [rect, label] : [rect] };
+        }) as never,
+        encode: { x: [1, 2], y: 0 },
+        data: bars.map((b) => ({ value: [resources.indexOf(b.resource), b.start, b.end], raw: b })),
+        markArea: {
+          silent: true,
+          data: days.map((d, i) => [
+            { xAxis: d.start_h, name: d.label, itemStyle: { color: i % 2 ? "rgba(124,156,201,0.07)" : "rgba(201,162,77,0.08)" } },
+            { xAxis: d.end_h },
+          ]) as never,
+          label: { show: true, position: "top", color: c.text, fontWeight: "bold", fontSize: 12 },
+        },
+        markLine: {
+          symbol: "none", silent: true, label: { show: false },
+          lineStyle: { color: c.border, type: "solid", width: 1 },
+          data: days.slice(1).map((d) => ({ xAxis: d.start_h })),
+        },
+      },
+    ],
   };
 }
