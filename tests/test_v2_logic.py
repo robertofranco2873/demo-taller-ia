@@ -288,3 +288,10 @@ def test_migration_adds_priority_column(tmp_path):
     conn.close()
     assert not db.ensure_database(p)  # no regenera: migra
     assert "priority" in db.load_orders(p).columns
+
+
+def test_pinned_technician_respected_in_free_assignment():
+    jobs = [Job("A", 4, 9, 1, "T1"), Job("B", 1, 9, 2, "T1", pinned=True)]
+    df = schedule_resources(jobs, "FIFO", ["T1", "T2"], ["B1", "B2"], respect_assignment=False).set_index("orden")
+    assert df.loc["B", "recurso"] == "T1"  # sin fijar se habría ido a T2 (libre)
+    assert df.loc["B", "inicio_h"] == 4

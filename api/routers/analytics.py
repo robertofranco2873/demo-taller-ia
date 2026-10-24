@@ -156,8 +156,13 @@ def capacity(week: date | None = None, _: dict = admin_only):
 
 # ---------- secuenciación ----------
 
-def _jobs(mode: str, technician_id: int | None, priorities: dict[str, int] | None):
-    """Órdenes pendientes como trabajos. Prioridad: la enviada por el usuario o la guardada en la orden."""
+def _jobs(mode: str, technician_id: int | None, priorities: dict[str, int] | None,
+          reassign: dict[str, int] | None = None):
+    """Órdenes pendientes como trabajos.
+
+    Prioridad: la enviada por el usuario o la guardada en la orden.
+    reassign = {folio: id de técnico}: mueve la orden a otro técnico y la fija (se respeta en cualquier alcance).
+    """
     orders = db.load_orders()
     pending = orders[orders["status"].isin(PENDING_STATUSES)]
     techs = db.load_technicians()
@@ -169,6 +174,14 @@ def _jobs(mode: str, technician_id: int | None, priorities: dict[str, int] | Non
         pending = pending[pending["technician"] == name]
         names = [name]
     now = add_work_hours(datetime.now().replace(microsecond=0), 0)
+    tech_name = dict(zip(techs["id"], techs["name"]))
+    moves = {}
+    for folio, tid in (reassign or {}).items():
+        if tid not in tech_name:
+            raise HTTPException(400, f"Técnico inválido para {folio}.")
+        moves[folio] = tech_name[tid]
+    if mode == "technician" and any(moves.get(f, n) not in names for f, n in zip(pending["folio"], pending["technician"])):
+        raise HTTPException(400, "En «Por técnico» no se pueden mover órdenes a otro técnico; usa «Respetar asignación».")
 
     def prio(r):
         if priorities is not None:
@@ -176,22 +189,24 @@ def _jobs(mode: str, technician_id: int | None, priorities: dict[str, int] | Non
         return None if pd.isna(r.priority) else float(r.priority)
 
     jobs = [Job(r.folio, float(r.std_hours), work_hours_until(now, r.due_date), r.created_at.timestamp(),
-                r.technician, prio(r)) for r in pending.itertuples()]
+                moves.get(r.folio, r.technician), prio(r), pinned=r.folio in moves) for r in pending.itertuples()]
     return jobs, names, now, pending
 
 
-def _schedule(rule: str, mode: str, technician_id: int | None, priorities: dict[str, int] | None = None):
+def _schedule(rule: str, mode: str, technician_id: int | None, priorities: dict[str, int] | None = None,
+              reassign: dict[str, int] | None = None):
     if rule not in RULES and rule != MANUAL:
         raise HTTPException(400, f"Regla desconocida: {rule}")
-    jobs, names, now, pending = _jobs(mode, technician_id, priorities)
+    jobs, names, now, pending = _jobs(mode, technician_id, priorities, reassign)
     bays = db.load_bays()["name"].tolist()
     respect = mode != "shop"
     sched = schedule_resources(jobs, rule, names, bays, respect) if jobs else None
     return jobs, names, bays, now, pending, respect, sched
 
 
-def _sequencing_response(rule: str, mode: str, technician_id: int | None, priorities: dict[str, int] | None):
-    jobs, names, bays, now, pending, respect, sched = _schedule(rule, mode, technician_id, priorities)
+def _sequencing_response(rule: str, mode: str, technician_id: int | None, priorities: dict[str, int] | None,
+                         reassign: dict[str, int] | None = None):
+    jobs, names, bays, now, pending, respect, sched = _schedule(rule, mode, technician_id, priorities, reassign)
     rules = {**RULES, MANUAL: MANUAL_LABEL}
     has_manual = any(j.priority is not None for j in jobs)
     if not jobs:
@@ -204,6 +219,7 @@ def _sequencing_response(rule: str, mode: str, technician_id: int | None, priori
     sched["cliente"] = [info.loc[f, "customer"] for f in sched["orden"]]
     sched["vehiculo"] = [info.loc[f, "vehicle"] for f in sched["orden"]]
     sched["estado"] = [info.loc[f, "status"] for f in sched["orden"]]
+    sched["tecnico_actual"] = [info.loc[f, "technician"] for f in sched["orden"]]  # el guardado en la orden
     sched["prioridad_guardada"] = [None if pd.isna(info.loc[f, "priority"]) else int(info.loc[f, "priority"])
                                    for f in sched["orden"]]
     horizon = float(sched["fin_h"].max())
@@ -226,11 +242,12 @@ class SimulateIn(BaseModel):
     mode: str = Field("assigned", pattern="^(assigned|shop|technician)$")
     technician_id: int | None = None
     priorities: dict[str, int] | None = Field(None, description="{folio: prioridad}; 1 = primero")
+    technicians: dict[str, int] | None = Field(None, description="{folio: id de técnico} para mover órdenes")
 
 
 @router.post("/sequencing/simulate", summary="Simula el programa con prioridades manuales (no guarda nada)")
 def sequencing_simulate(body: SimulateIn, _: dict = admin_only):
-    return _sequencing_response(body.rule, body.mode, body.technician_id, body.priorities)
+    return _sequencing_response(body.rule, body.mode, body.technician_id, body.priorities, body.technicians)
 
 
 class ApplyIn(SimulateIn):
@@ -241,7 +258,7 @@ class ApplyIn(SimulateIn):
 @router.post("/sequencing/apply", summary="Reasignar: aplica la propuesta (técnico, bahía, fecha y prioridad)")
 def sequencing_apply(body: ApplyIn, _: dict = admin_only):
     jobs, names, bays, now, pending, respect, sched = _schedule(body.rule, body.mode, body.technician_id,
-                                                                body.priorities)
+                                                                body.priorities, body.technicians)
     if sched is None:
         return {"updated": 0}
     tech_id = dict(zip(db.load_technicians()["name"], db.load_technicians()["id"]))

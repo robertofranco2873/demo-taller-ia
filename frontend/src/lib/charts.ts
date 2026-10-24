@@ -180,7 +180,8 @@ export function ganttDaysOption(c: ChartColors, bars: GanttBar[], resources: str
           return { type: "group", children: label ? [rect, label] : [rect] };
         }) as never,
         encode: { x: [1, 2], y: 0 },
-        data: bars.map((b) => ({ value: [resources.indexOf(b.resource), b.start, b.end], raw: b })),
+        // "sel" en los datos (no solo en renderItem) para que el cambio de selección redibuje la gráfica.
+        data: bars.map((b) => ({ value: [resources.indexOf(b.resource), b.start, b.end], raw: b, sel: b.folio === selected })),
         markArea: {
           silent: true,
           data: days.map((d, i) => [

@@ -18,6 +18,7 @@ interface SchedRow {
   posicion: number; orden: string; recurso: string; bahia: string; proceso_h: number; entrega_h: number;
   inicio_h: number; fin_h: number; inicio: string; fin: string; retraso_h: number; tarde: boolean;
   compromiso: string; cliente: string; vehiculo: string; estado: string; prioridad_guardada: number | null;
+  tecnico_actual: string;
 }
 interface Seq {
   jobs: number; hours: number; now: string; rules: Record<Rule, string>; comparison: Comparison[];
@@ -30,21 +31,25 @@ const RULE_OPTIONS: { value: Rule; label: string }[] = [
 const short = (n: string) => n.split("·")[1]?.trim() ?? n;
 
 /** Carga la propuesta: GET para reglas y prioridades guardadas; POST /simulate cuando el usuario reordena. */
-function useSequencing(rule: Rule, mode: Mode, tech: number, order: string[] | null) {
+function useSequencing(rule: Rule, mode: Mode, tech: number, order: string[] | null, moves: Record<string, number>) {
   const [data, setData] = useState<Seq | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [tick, setTick] = useState(0);
-  const req = useDebounced(JSON.stringify({ rule, mode, tech, order }), 250);
+  const req = useDebounced(JSON.stringify({ rule, mode, tech, order, moves }), 250);
 
   useEffect(() => {
-    const { rule: r, mode: m, tech: t, order: o } = JSON.parse(req) as { rule: Rule; mode: Mode; tech: number; order: string[] | null };
+    const { rule: r, mode: m, tech: t, order: o, moves: mv } = JSON.parse(req) as {
+      rule: Rule; mode: Mode; tech: number; order: string[] | null; moves: Record<string, number>;
+    };
     const technician_id = m === "technician" ? t : null;
+    const priorities = r === "MANUAL" && o ? Object.fromEntries(o.map((f, i) => [f, i + 1])) : null;
+    const hasMoves = Object.keys(mv).length > 0;
     let alive = true;
     setLoading(true);
     setError(null);
-    const call = r === "MANUAL" && o
-      ? api.post<Seq>("/api/sequencing/simulate", { rule: r, mode: m, technician_id, priorities: Object.fromEntries(o.map((f, i) => [f, i + 1])) })
+    const call = priorities || hasMoves
+      ? api.post<Seq>("/api/sequencing/simulate", { rule: r, mode: m, technician_id, priorities, technicians: hasMoves ? mv : null })
       : api.get<Seq>("/api/sequencing", { rule: r, mode: m, technician_id });
     call.then((d) => alive && setData(d)).catch((e: Error) => alive && setError(e.message)).finally(() => alive && setLoading(false));
     return () => {
@@ -85,12 +90,13 @@ export default function Secuenciacion() {
   const [mode, setMode] = useState<Mode>("assigned");
   const [tech, setTech] = useState(1);
   const [order, setOrder] = useState<string[] | null>(null);
+  const [moves, setMoves] = useState<Record<string, number>>({}); // folio → técnico nuevo
   const [filter, setFilter] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const techs = useApi<Technician[]>("/api/technicians");
-  const { data, error, loading, reload } = useSequencing(rule, mode, tech, order);
+  const { data, error, loading, reload } = useSequencing(rule, mode, tech, order, moves);
 
   // Si ya hay una secuencia guardada (de un "Reasignar" anterior), se abre en modo Manual.
   const openedStored = useRef(false);
@@ -127,8 +133,24 @@ export default function Secuenciacion() {
   }
   function changeMode(m: Mode) {
     setOrder(null);
+    setMoves({});
     setFilter("");
     setMode(m);
+  }
+
+  /** Mueve una orden a otro técnico (o la regresa a su técnico actual). */
+  function moveToTechnician(row: SchedRow, technicianId: number) {
+    const original = techs.data?.find((t) => t.name === row.tecnico_actual)?.id;
+    setMoves((m) => {
+      const next = { ...m };
+      if (technicianId === original) delete next[row.orden];
+      else next[row.orden] = technicianId;
+      return next;
+    });
+  }
+  function resetAll() {
+    setMoves({});
+    changeRule("EDD");
   }
 
   async function apply() {
@@ -136,11 +158,13 @@ export default function Secuenciacion() {
     try {
       const priorities = rule === "MANUAL" ? Object.fromEntries((order ?? sorted.map((r) => r.orden)).map((f, i) => [f, i + 1])) : null;
       const r = await api.post<{ updated: number }>("/api/sequencing/apply", {
-        rule, mode: mode === "assigned" && rule !== "MANUAL" ? "shop" : mode, technician_id: mode === "technician" ? tech : null, priorities,
+        rule, mode, technician_id: mode === "technician" ? tech : null, priorities,
+        technicians: Object.keys(moves).length ? moves : null,
       });
       toast(`Secuencia guardada en ${r.updated} órdenes (prioridad, técnico, bahía y fecha). Los técnicos la verán en Mi día.`);
       setConfirm(false);
       setOrder(null);
+      setMoves({});
       setRule("MANUAL");
       reload();
     } catch (e) {
@@ -152,7 +176,8 @@ export default function Secuenciacion() {
 
   if (error && !data) return <ErrorState message={error} onRetry={reload} />;
   const best = (k: keyof Comparison) => (data?.comparison.length ? data.comparison.reduce((a, b) => (Number(b[k]) < Number(a[k]) ? b : a)).regla : null);
-  const edited = rule === "MANUAL" && order !== null;
+  const movedCount = Object.keys(moves).length;
+  const edited = (rule === "MANUAL" && order !== null) || movedCount > 0;
   const lateCount = visible.filter((r) => r.tarde).length;
 
   return (
@@ -194,10 +219,11 @@ export default function Secuenciacion() {
               {data?.technicians.map((t) => <option key={t} value={t}>{t}</option>)}
             </SelectField></div>
           )}
-          {edited && <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => changeRule("EDD")}>Restablecer</Button>}
+          {edited && <Button size="sm" variant="ghost" icon={RotateCcw} onClick={resetAll}>Restablecer</Button>}
         </>}>
         <p className="mb-3 text-xs text-muted">
-          Cambia la prioridad con las flechas o escribe el número (1 = primero): el programa y el Gantt se recalculan con la regla <b>Manual</b>.
+          Cambia la prioridad con las flechas o escribe el número (1 = primero), y usa la columna <b>Técnico</b> para pasar una orden a otro técnico:
+          el programa y el Gantt se recalculan al momento.
           Clic en una fila para resaltarla en el Gantt. <b>Guardar / reasignar</b> fija la secuencia y los técnicos la verán en Mi día.
         </p>
         {data && visible.length > 0 && (
@@ -214,14 +240,29 @@ export default function Secuenciacion() {
                   onSet={(n) => moveToPosition(s.orden, n)} />;
               } },
             { key: "o", header: "Orden", render: (s) => <span className={selected === s.orden ? "font-bold text-accent" : "font-semibold text-text"}>{s.orden}<span className="block text-xs font-normal text-muted">{s.cliente}</span></span> },
-            { key: "r", header: "Técnico", render: (s) => short(s.recurso) },
+            { key: "r", header: <span className="inline-flex items-center gap-1">Técnico<InfoTip text="Cambia el técnico para mover la orden: el Gantt se recalcula. Se guarda con «Guardar / reasignar»." /></span>,
+              render: (s) => (
+                <span className="inline-flex flex-col gap-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                  <select className="field h-8 min-w-40 cursor-pointer py-0 text-xs" aria-label={`Técnico de ${s.orden}`}
+                    value={techs.data?.find((t) => t.name === s.recurso)?.id ?? ""} disabled={mode === "technician"}
+                    title={mode === "technician" ? "Para mover órdenes entre técnicos usa «Respetar asignación» o «Taller completo»" : undefined}
+                    onChange={(e) => moveToTechnician(s, Number(e.target.value))}>
+                    {techs.data?.map((t) => <option key={t.id} value={t.id}>{short(t.name)}</option>)}
+                  </select>
+                  {s.recurso !== s.tecnico_actual && (
+                    <span className="inline-flex w-fit items-center gap-1 rounded-full bg-gold-soft px-2 py-0.5 text-[11px] font-medium text-gold">
+                      <Hand size={11} aria-hidden />{moves[s.orden] ? "movida" : "propuesta"} · antes {short(s.tecnico_actual)}
+                    </span>
+                  )}
+                </span>
+              ) },
             { key: "b", header: "Bahía", hideOnMobile: true, render: (s) => s.bahia },
             { key: "h", header: "Proceso", numeric: true, render: (s) => `${num(s.proceso_h, 2)} h` },
             { key: "c", header: "Compromiso", hideOnMobile: true, render: (s) => date(s.compromiso) },
             { key: "i", header: "Inicio", render: (s) => dateTime(s.inicio) },
             { key: "f", header: "Fin", hideOnMobile: true, render: (s) => dateTime(s.fin) },
             { key: "x", header: "Retraso", numeric: true, render: (s) => (s.tarde
-              ? <span className="inline-flex items-center gap-1.5 font-medium text-danger">{num(s.retraso_h)} h <StatusBadge status="vencida" /></span>
+              ? <span className="inline-flex items-center gap-1.5 whitespace-nowrap font-medium text-danger">{num(s.retraso_h)} h <StatusBadge status="vencida" /></span>
               : <span className="text-success">a tiempo</span>) },
           ]} />
         </div>
@@ -238,8 +279,8 @@ export default function Secuenciacion() {
 
       <Modal open={confirm} onClose={() => setConfirm(false)} title="¿Guardar esta secuencia?" subtitle={rule === "MANUAL" ? "Prioridad manual" : `Regla ${rule}`}>
         <Notice kind="warning">
-          Se guardará la prioridad de las {data?.jobs} órdenes pendientes y se actualizará su técnico, bahía y fecha programada según la propuesta
-          {mode === "assigned" && rule !== "MANUAL" ? " (con la asignación libre del taller completo)" : ""}. Los técnicos verán este orden en Mi día.
+          Se guardará tal como lo ves: prioridad, técnico, bahía y fecha programada de las {data?.jobs} órdenes pendientes
+          {movedCount ? `, incluidas ${movedCount} orden(es) movida(s) a otro técnico` : ""}. Los técnicos verán este orden en Mi día.
         </Notice>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" onClick={() => setConfirm(false)}>Cancelar</Button>

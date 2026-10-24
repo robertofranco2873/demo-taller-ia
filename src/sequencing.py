@@ -27,6 +27,7 @@ class Job:
     arrival: float = 0.0  # para FIFO (p. ej. timestamp de recepción)
     technician: str | None = None  # técnico asignado actualmente (opcional)
     priority: float | None = None  # prioridad manual (1 = primero); None = al final
+    pinned: bool = False  # técnico fijado por el usuario: se respeta aunque la asignación sea libre
 
 
 def sequence(jobs: list[Job], rule: str) -> list[Job]:
@@ -103,7 +104,7 @@ def schedule_resources(jobs: list[Job], rule: str, technicians: list[str], bays:
     bay_free = {b: 0.0 for b in bays}
     rows = []
     for pos, job in enumerate(sequence(jobs, rule), start=1):
-        if respect_assignment and job.technician in tech_free:
+        if (respect_assignment or job.pinned) and job.technician in tech_free:
             tech = job.technician
         else:
             tech = min(technicians, key=lambda t: (tech_free[t], technicians.index(t)))

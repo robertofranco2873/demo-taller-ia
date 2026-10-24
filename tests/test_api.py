@@ -373,3 +373,36 @@ def test_simulate_rejects_unknown_rule(client, tokens):
     r = client.post("/api/sequencing/simulate", headers=tokens["admin"], json={"rule": "LPT"})
     assert r.status_code == 400
     assert client.post("/api/sequencing/simulate", headers=tokens["recepcion"], json={}).status_code == 403
+
+
+def test_sequencing_move_order_to_other_technician(client, tokens):
+    h = tokens["admin"]
+    base = client.get("/api/sequencing?mode=assigned&rule=EDD", headers=h).json()
+    row = base["schedule"][0]
+    techs = client.get("/api/technicians", headers=h).json()
+    target = next(t for t in techs if t["name"] != row["recurso"])
+    sim = client.post("/api/sequencing/simulate", headers=h, json={
+        "rule": "EDD", "mode": "assigned", "technicians": {row["orden"]: target["id"]}}).json()
+    moved = next(r for r in sim["schedule"] if r["orden"] == row["orden"])
+    assert moved["recurso"] == target["name"] and moved["tecnico_actual"] == row["recurso"]
+    # También se respeta en "Taller completo"
+    shop = client.post("/api/sequencing/simulate", headers=h, json={
+        "rule": "EDD", "mode": "shop", "technicians": {row["orden"]: target["id"]}}).json()
+    assert next(r for r in shop["schedule"] if r["orden"] == row["orden"])["recurso"] == target["name"]
+    # Guardar persiste el técnico
+    r = client.post("/api/sequencing/apply", headers=h, json={
+        "rule": "EDD", "mode": "assigned", "technicians": {row["orden"]: target["id"]}})
+    assert r.status_code == 200
+    orders = client.get(f"/api/orders?q={row['orden']}", headers=h).json()
+    assert next(o for o in orders if o["folio"] == row["orden"])["technician_id"] == target["id"]
+
+
+def test_sequencing_move_rejected_in_technician_mode(client, tokens):
+    h = tokens["admin"]
+    one = client.get("/api/sequencing?mode=technician&technician_id=1", headers=h).json()
+    folio = one["schedule"][0]["orden"]
+    r = client.post("/api/sequencing/simulate", headers=h, json={
+        "rule": "EDD", "mode": "technician", "technician_id": 1, "technicians": {folio: 2}})
+    assert r.status_code == 400
+    bad = client.post("/api/sequencing/simulate", headers=h, json={"technicians": {folio: 999}})
+    assert bad.status_code == 400
