@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 
 from src import config
 
-load_dotenv()
+load_dotenv(config.ROOT_DIR / ".env")
 
 
 class AIError(Exception):
@@ -49,6 +49,9 @@ def chat(messages: list[dict], json_mode: bool = False, temperature: float = 0.3
         raise AIError("Groq rechazó la API key (401). Verifica GROQ_API_KEY en tu archivo .env.")
     if resp.status_code == 429:
         raise AIError("Se alcanzó el límite de uso gratuito de Groq (429). Espera un minuto y reintenta.")
+    if resp.status_code == 404:
+        raise AIError(f"El modelo «{payload['model']}» no existe en Groq o fue retirado (404). "
+                      "Cambia GROQ_MODEL en .env (lista en console.groq.com/docs/models).")
     if resp.status_code >= 400:
         raise AIError(f"Groq devolvió un error {resp.status_code}. Intenta más tarde.")
     try:

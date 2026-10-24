@@ -34,7 +34,7 @@ auto tarde. Esta app:
 | 7 | Secuenciación | FIFO, SPT y EDD: tiempo de flujo promedio, retraso promedio, órdenes tarde y diagrama de Gantt (taller completo o por técnico) |
 | 8 | Control estadístico | Gráfica X̄ (individuales) con límites ±3σ y regla de racha para un servicio |
 
-### Con IA (opcional, Groq · `llama-3.3-70b-versatile`)
+### Con IA (opcional, Groq · `qwen/qwen3.8-27b`, configurable con `GROQ_MODEL`)
 1. **Diagnóstico → cotización**: el cliente describe el problema ("hace ruido al frenar") y la IA
    sugiere servicios **del catálogo** en JSON validado (se descartan códigos inexistentes).
    El precio lo calcula la fórmula, no la IA.
@@ -111,7 +111,8 @@ notepad .env
 
 ```
 app.py                  Inicio
-pages/                  8 páginas de Streamlit (solo UI)
+paginas/                8 páginas de Streamlit (solo UI; no se llama pages/ para no
+                        chocar con la navegación automática de Streamlit)
 src/                    Lógica pura: time_study, quote, kpis, pareto, capacity,
                         sequencing, spc, workcalendar, orders, db, seed, export, charts
 src/ai/                 Cliente Groq (requests) y funciones de IA con JSON validado

@@ -25,5 +25,5 @@ PENDING_STATUSES = ["recibida", "en proceso"]
 CLOSED_STATUSES = ["terminada", "entregada"]
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_DEFAULT_MODEL = "llama-3.3-70b-versatile"
-GROQ_TIMEOUT_S = 30
+GROQ_DEFAULT_MODEL = "qwen/qwen3.8-27b"  # llama-3.3-70b-versatile fue retirado por Groq
+GROQ_TIMEOUT_S = 60

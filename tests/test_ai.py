@@ -60,7 +60,7 @@ class FakeResp:
         return self._body
 
 
-@pytest.mark.parametrize("status, text", [(401, "401"), (429, "429"), (500, "500")])
+@pytest.mark.parametrize("status, text", [(401, "401"), (404, "GROQ_MODEL"), (429, "429"), (500, "500")])
 def test_chat_http_errors(status, text):
     with patch.object(groq_client.requests, "post", return_value=FakeResp(status)):
         with pytest.raises(AIError, match=text):
