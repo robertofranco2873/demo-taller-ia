@@ -49,3 +49,12 @@ def date_filter(orders: pd.DataFrame, key: str) -> tuple[date, date]:
 
 def money(x: float) -> str:
     return f"${x:,.2f}"
+
+
+def money_short(x: float) -> str:
+    """Monto compacto para tarjetas KPI: $1.72 M, $45.3 k."""
+    if abs(x) >= 1_000_000:
+        return f"${x / 1_000_000:.2f} M"
+    if abs(x) >= 10_000:
+        return f"${x / 1_000:.1f} k"
+    return money(x)
