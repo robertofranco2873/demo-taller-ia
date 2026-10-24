@@ -131,6 +131,14 @@ export function ganttDaysOption(c: ChartColors, bars: GanttBar[], resources: str
     const mm = Math.round((h - hh) * 60);
     return `${hh}:${String(mm).padStart(2, "0")}`;
   };
+  const hourTicks = days.flatMap((d) => {
+    const ticks: number[] = [];
+    const len = d.end_h - d.start_h;
+    for (let h = Math.ceil(d.start_clock - 1e-6); h <= d.start_clock + len + 1e-6; h++) {
+      if (h % 2 === 1 || h === Math.ceil(d.start_clock - 1e-6)) ticks.push(d.start_h + (h - d.start_clock));
+    }
+    return ticks;
+  });
   const fmt = (iso: string) => new Date(iso).toLocaleString("es-MX", { weekday: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
   return {
     ...baseOption(c),
@@ -147,8 +155,10 @@ export function ganttDaysOption(c: ChartColors, bars: GanttBar[], resources: str
         labelFormatter: (v: number) => days.find((d) => v >= d.start_h && v <= d.end_h)?.label ?? "" },
     ],
     xAxis: {
-      type: "value", min: 0, max, interval: 2, ...axisStyle(c), splitLine: { show: false },
-      axisLabel: { ...axisStyle(c).axisLabel, formatter: (v: number) => clockAt(v) },
+      type: "value", min: 0, max, ...axisStyle(c), splitLine: { show: false },
+      // Marcas en horas exactas de reloj de cada día (9:00, 11:00, …), aunque hoy empiece a media jornada.
+      axisTick: { show: true, customValues: hourTicks } as never,
+      axisLabel: { ...axisStyle(c).axisLabel, customValues: hourTicks, formatter: (v: number) => clockAt(v) } as never,
     },
     yAxis: { type: "category", data: resources, inverse: true, ...axisStyle(c),
       axisLabel: { ...axisStyle(c).axisLabel, width: 130, overflow: "truncate" } },
