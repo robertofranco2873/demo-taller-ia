@@ -1,0 +1,18 @@
+# Blueprint de Render (plan gratis). En Render: New → Blueprint → elige este repositorio.
+services:
+  - type: web
+    name: demo-taller-ia
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: JWT_SECRET
+        generateValue: true # Render genera un secreto aleatorio
+      - key: GROQ_API_KEY
+        sync: false # opcional: pégala en el panel de Render; sin ella la IA se oculta
+      - key: GROQ_MODEL
+        value: qwen/qwen3.8-27b
+      - key: BCRYPT_ROUNDS
+        value: "12"

@@ -27,6 +27,8 @@ App demo de un taller mecánico **ficticio** ("AutoServicio Demo"). V1 en Stream
 - Hardware limitado (Celeron, 8 GB): dependencias ligeras, nada de frameworks pesados.
 - Texto con contraste WCAG AA en ambos temas. Responsive (los técnicos usan celular).
 - Windows + PowerShell. Python 3.12 en `.venv`; Node portátil en `%LOCALAPPDATA%\Programs\nodejs`.
+- Dependencias: `requirements.txt` (producción) y `requirements-dev.txt` (+ pytest, httpx).
 - Verificar antes de commit: `python -m pytest -q`, `npm run lint` y `npm run build` en `frontend/`.
+- Deploy: `Dockerfile` multietapa + `render.yaml` (Render, plan gratis, un solo servicio).
 - `data/taller.db` no se versiona; se regenera con `python -m src.seed` (semilla 42).
 - No hacer `git add -A`: `.agents/` y `.claude/` son del usuario.

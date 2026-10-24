@@ -183,7 +183,9 @@ export default function Dashboard() {
   }, [data, range]);
 
   const goal = data?.efficiency_goal ?? 1;
-  const reached = !!data?.kpis.eficiencia && data.kpis.eficiencia >= goal;
+  // Se compara con el mismo redondeo que se muestra (99.7 % se ve como 100 %).
+  const meets = (v: number | null | undefined) => v != null && Math.round(v * 100) >= Math.round(goal * 100);
+  const reached = meets(data?.kpis.eficiencia);
   useEffect(() => {
     if (reached) celebrateGoalOnce("taller");
   }, [reached]);
@@ -236,7 +238,7 @@ export default function Dashboard() {
           <Chart loading={!data} ariaLabel="Eficiencia por técnico" onClick={(p) => data && setParams({ tecnico: String(data.efficiency[p.dataIndex].technician_id) })} option={barOption(c, {
             categories: (data?.efficiency ?? []).map((e) => e.technician.split("·")[1]?.trim() ?? e.technician),
             values: (data?.efficiency ?? []).map((e) => e.eficiencia), name: "Eficiencia", format: (v) => pct(v), labels: true,
-            colors: (data?.efficiency ?? []).map((e) => (e.eficiencia >= goal ? c.series[0] : c.series[1])), refLine: { value: goal, label: `Meta ${pct(goal)}` },
+            colors: (data?.efficiency ?? []).map((e) => (meets(e.eficiencia) ? c.series[0] : c.series[1])), refLine: { value: goal, label: `Meta ${pct(goal)}` },
           })} />
         </Card>
         <Card title="Utilización de bahías">
