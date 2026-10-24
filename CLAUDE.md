@@ -5,7 +5,8 @@ App demo (Streamlit + SQLite) de un taller mecánico **ficticio** ("AutoServicio
 ## Reglas
 - Todo es DEMO con datos ficticios: mantener el aviso en la UI, README y exportables.
 - Lógica de negocio en `src/` como funciones puras, sin `import streamlit`
-  (única excepción: `src/ui_common.py`). Las páginas en `pages/` solo muestran.
+  (única excepción: `src/ui_common.py`). Las páginas en `paginas/` solo muestran (registradas en `app.py` con `st.navigation`;
+  no renombrar a `pages/`, Streamlit la autodetecta y duplica el menú).
 - Toda fórmula nueva lleva prueba en `tests/`. Correr `.\.venv\Scripts\python.exe -m pytest -q`
   antes de cada commit; `tests/test_pages.py` ejecuta cada página con `AppTest`.
 - La IA (Groq, `src/ai/`) solo interpreta texto y redacta. **Nunca** calcula precios ni

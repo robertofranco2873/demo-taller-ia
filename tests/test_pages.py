@@ -9,7 +9,7 @@ from src import config
 from src.seed import seed_database
 
 ROOT = Path(__file__).resolve().parent.parent
-PAGES = ["app.py"] + sorted(f"pages/{p.name}" for p in (ROOT / "pages").glob("*.py"))
+PAGES = ["app.py"] + sorted(f"paginas/{p.name}" for p in (ROOT / "paginas").glob("*.py"))
 
 
 @pytest.fixture(scope="module")
@@ -41,7 +41,7 @@ def test_ai_diagnosis_flow_with_mocked_groq(demo_db, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", demo_db)
     monkeypatch.setenv("GROQ_API_KEY", "clave-de-prueba")
     monkeypatch.setattr(groq_client.requests, "post", lambda *a, **k: Resp())
-    at = AppTest.from_file(str(ROOT / "pages/2_Cotizador.py"), default_timeout=60).run()
+    at = AppTest.from_file(str(ROOT / "paginas/2_Cotizador.py"), default_timeout=60).run()
     at.text_area[0].input("El pedal de freno se siente esponjoso").run()
     next(b for b in at.button if b.label == "Sugerir servicios del catálogo").click().run()
     assert not at.exception
@@ -52,7 +52,7 @@ def test_ai_diagnosis_flow_with_mocked_groq(demo_db, monkeypatch):
 def test_cotizador_calculates_quote(demo_db, monkeypatch):
     monkeypatch.setattr(config, "DB_PATH", demo_db)
     monkeypatch.setenv("GROQ_API_KEY", "")
-    at = AppTest.from_file(str(ROOT / "pages/2_Cotizador.py"), default_timeout=60).run()
+    at = AppTest.from_file(str(ROOT / "paginas/2_Cotizador.py"), default_timeout=60).run()
     at.multiselect(key="quote_sel").select(at.multiselect(key="quote_sel").options[0]).run()
     assert not at.exception
     labels = [m.label for m in at.metric]
