@@ -5,6 +5,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import { GearLoader } from "../components/loaders";
 import { Logo } from "../components/Logo";
 import { Button, Notice } from "../components/ui";
+import { useAppInfo } from "../lib/appInfo";
 import { useAuth } from "../lib/auth";
 import { useApi } from "../lib/hooks";
 import { HOME_BY_ROLE } from "../lib/modules";
@@ -28,6 +29,7 @@ const ROLE_INFO: Record<Role, string> = {
 export default function Login() {
   const { user, login } = useAuth();
   const { theme, toggle } = useTheme();
+  const { demo_mode } = useAppInfo();
   const navigate = useNavigate();
   const { data: demo } = useApi<DemoUser[]>("/api/auth/demo-users");
   const [username, setUsername] = useState("");
@@ -74,6 +76,7 @@ export default function Login() {
           <h2 className="text-xl font-bold text-text">Iniciar sesión</h2>
           <Notice kind="warning">
             <strong>Demo con datos ficticios.</strong> “AutoServicio Demo” no es un negocio real. Usa un usuario demo.
+            {demo_mode && " Es una demo pública: puedes explorar libremente; los datos se restablecen cada 24 h."}
           </Notice>
           <form onSubmit={submit} className="mt-5 space-y-4">
             <div>

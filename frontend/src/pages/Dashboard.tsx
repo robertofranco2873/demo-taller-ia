@@ -262,7 +262,7 @@ export default function Dashboard() {
           <>
             <p className="mb-3 text-sm text-secondary">La IA recibe solo los KPIs ya calculados de este periodo y los explica en lenguaje claro.</p>
             <Button variant="primary" icon={Bot} loading={aiBusy} onClick={aiSummary}>Generar resumen</Button>
-            {summary && <div className="mt-4 whitespace-pre-wrap rounded-md bg-surface-muted p-4 text-sm leading-relaxed text-text">{summary.replace(/\*\*/g, "")}</div>}
+            {summary && <div className="mt-4 whitespace-pre-wrap rounded-md bg-surface-muted p-4 text-sm leading-relaxed text-text">{summary.replace(/\*\*/g, "").replace(/^\s*[*-]\s+/gm, "• ")}</div>}
           </>
         ) : <Notice kind="info">IA desactivada (sin <code>GROQ_API_KEY</code>). Todos los indicadores funcionan sin ella.</Notice>}
       </Card>

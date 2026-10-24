@@ -65,15 +65,35 @@ def suggest_services(problem: str, catalog: list[dict], chat_fn: ChatFn = chat) 
     return parse_diagnosis(raw, {c["code"] for c in catalog})
 
 
+PERCENT_KEYS = ("eficiencia", "utilizacion", "tasa")
+MONEY_KEYS = ("ingresos", "ticket")
+
+
+def format_kpis_for_text(value, key: str = ""):
+    """Formatea (no calcula) los KPIs para que la IA solo copie cifras legibles: 0.939 → "93.9 %"."""
+    if isinstance(value, dict):
+        return {k: format_kpis_for_text(v, key if key.startswith(PERCENT_KEYS + MONEY_KEYS) else k)
+                for k, v in value.items()}
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return value
+    if key.startswith(PERCENT_KEYS):
+        return f"{value * 100:.1f} %"
+    if key.startswith(MONEY_KEYS):
+        return f"${value:,.2f} MXN"
+    return value
+
+
 def executive_summary(kpis: dict, chat_fn: ChatFn = chat) -> str:
-    """Resumen ejecutivo en lenguaje claro a partir de KPIs YA calculados."""
+    """Resumen ejecutivo en lenguaje claro a partir de KPIs YA calculados (y ya formateados)."""
     messages = [
         {"role": "system", "content": (
             "Eres analista de operaciones (ingeniería industrial) de un taller mecánico DEMO. "
             "Redacta en español un resumen ejecutivo de máximo 180 palabras: 3 hallazgos y 3 "
-            "recomendaciones accionables. Usa SOLO los números del JSON, sin recalcular ni inventar "
-            "cifras. Eficiencia > 1 significa más rápido que el estándar. Formato markdown con viñetas.")},
-        {"role": "user", "content": json.dumps(kpis, ensure_ascii=False)},
+            "recomendaciones accionables. Usa SOLO las cifras del JSON, copiadas exactamente como vienen "
+            "(ya están formateadas): NO calcules porcentajes, diferencias ni promedios, NO redondees y no "
+            "escribas ninguna cifra que no esté en el JSON. "
+            "Eficiencia mayor a 100 % significa más rápido que el estándar. Formato: viñetas cortas con «- ».")},
+        {"role": "user", "content": json.dumps(format_kpis_for_text(kpis), ensure_ascii=False)},
     ]
     return chat_fn(messages, temperature=0.4)
 

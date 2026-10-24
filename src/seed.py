@@ -7,10 +7,12 @@ técnico, esperas por refacciones (retrasos) y algunas anomalías de tiempo.
 Uso:  python -m src.seed   (borra y regenera data/taller.db)
 """
 import math
+import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from src import clock
 from src import config
 from src.quote import Quote, QuoteLine
 from src.time_study import standard_hours
@@ -164,10 +166,11 @@ BAYS = ["Bahía 1 · Elevador", "Bahía 2 · Elevador", "Bahía 3 · Alineación
 MONTH_FACTOR = {1: 0.80, 2: 0.85, 3: 0.95, 4: 0.95, 5: 1.00, 6: 0.90,
                 7: 1.20, 8: 1.05, 9: 0.85, 10: 1.00, 11: 1.00, 12: 1.25}
 WEEKDAY_FACTOR = {0: 1.30, 1: 1.00, 2: 0.95, 3: 0.95, 4: 1.10, 5: 0.70}
-BASE_ORDERS_PER_DAY = 2.35
+BASE_ORDERS_PER_DAY = 2.45
 RECENT_BOOST_DAYS = 8      # pico de demanda reciente para tener backlog
-RECENT_BOOST = 2.2
-RECENT_WAIT_PROB = 0.40    # órdenes recientes esperando autorización o refacciones
+RECENT_BOOST = 2.3
+RECENT_WAIT_PROB = 0.15    # órdenes recientes esperando autorización o refacciones
+LATE_PROMISE_PROB = 0.12   # fracción de órdenes con promesa optimista (las que pueden salir tarde)
 RECENT_TECH_WEIGHTS = [0.45, 0.25, 0.18, 0.12]  # el técnico A concentra la carga reciente
 
 FIRST_NAMES = ["Ana", "Luis", "María", "José", "Laura", "Jorge", "Elena", "Raúl", "Paola", "Diego",
@@ -253,6 +256,10 @@ def generate(now: datetime, seed: int = SEED) -> dict:
             # La promesa al cliente incluye la espera por refacciones; los retrasos salen de la cola.
             promise_days = math.ceil(quote.hours / 6) + int(wait_parts // config.HOURS_PER_DAY) + rng.choice([0, 1, 1, 2])
             due = add_workdays(created.date(), promise_days)
+            # Recepción promete viendo la cola del taller: fin planeado + 0-2 días de margen.
+            # Solo una fracción pequeña se promete "optimista" y puede salir tarde (realista, no todo en rojo).
+            if rng.random() >= LATE_PROMISE_PROB:
+                due = max(due, add_workdays(finish.date(), rng.choice([0, 0, 1, 1, 2])))
 
             if start > now:
                 status, started, finished, deliv = "recibida", None, None, None
@@ -283,7 +290,47 @@ def generate(now: datetime, seed: int = SEED) -> dict:
                               "line_subtotal": quote.line_subtotal(line),
                               "actual_hours": actual if done else None})
         day += timedelta(days=1)
+    _shape_current_state(orders, now, rng)
     return {"orders": orders, "items": items}
+
+
+def _previous_workday(d, n: int):
+    while n > 0:
+        d -= timedelta(days=1)
+        if is_workday(d):
+            n -= 1
+    return d
+
+
+def _shape_current_state(orders: list[dict], now: datetime, rng: random.Random) -> None:
+    """Ajuste final para que la demo se vea como un día normal de taller, sea cual sea la fecha:
+    cada técnico con pendientes tiene una orden en curso y solo unas pocas (2-4) están vencidas.
+    """
+    today = now.date()
+    pending = [o for o in orders if o["status"] in ("recibida", "en proceso")]
+    # 1) Una orden en proceso por técnico (la primera de su cola), iniciada hace un rato.
+    for tech in sorted({o["technician_id"] for o in pending}):
+        queue = sorted((o for o in pending if o["technician_id"] == tech), key=lambda o: (o["scheduled_date"], o["id"]))
+        if any(o["status"] == "en proceso" for o in queue):
+            continue
+        first = queue[0]
+        started = max(first["created_at"], now - timedelta(hours=rng.uniform(0.3, 1.5)))
+        first.update(status="en proceso", started_at=started, scheduled_date=started.date())
+    # 2) Entre 2 y 4 vencidas (no más de una cuarta parte del backlog).
+    target = min(rng.randint(2, 4), max(1, len(pending) // 4))
+    overdue = [o for o in pending if o["due_date"] < today]
+    for o in overdue[target:]:  # sobran: se les da una promesa realista (hoy o en 1-2 días)
+        o["due_date"] = add_workdays(today, rng.choice([0, 1, 1, 2]))
+    candidates = [o for o in pending if o["due_date"] >= today and o["created_at"].date() < today]
+    rng.shuffle(candidates)
+    for o in candidates[:max(0, target - len(overdue))]:  # faltan: promesas que ya se pasaron
+        o["due_date"] = max(o["created_at"].date(), _previous_workday(today, rng.choice([1, 1, 2])))
+    # 3) Algunas terminadas esperando que el cliente pase por su auto (2-4).
+    ready = [o for o in orders if o["status"] == "terminada"]
+    recent = sorted((o for o in orders if o["status"] == "entregada" and o["finished_at"] >= now - timedelta(days=7)),
+                    key=lambda o: o["finished_at"], reverse=True)
+    for o in recent[:max(0, rng.randint(2, 4) - len(ready))]:
+        o.update(status="terminada", delivered_at=None)
 
 
 def _iso(value):
@@ -293,16 +340,22 @@ def _iso(value):
 
 
 def seed_database(db_path: Path | None = None, now: datetime | None = None, seed: int = SEED) -> dict:
-    """Borra la base (si existe) y la llena con catálogo y órdenes ficticias."""
+    """Genera la base con catálogo y órdenes ficticias y reemplaza la anterior.
+
+    Se construye en un archivo temporal y luego se reemplaza de forma atómica, para que una
+    regeneración (p. ej. el restablecimiento diario del modo demo) no deje la base a medias.
+    """
     from src import db
 
-    path = Path(db_path or config.DB_PATH)
+    final = Path(db_path or config.DB_PATH)
+    final.parent.mkdir(parents=True, exist_ok=True)
+    path = final.with_name(final.name + ".tmp")
     if path.exists():
         path.unlink()
     db.init_schema(path)
     from src.security import hash_password
 
-    now = now or datetime.now().replace(microsecond=0)
+    now = now or clock.now()
     data = generate(now, seed)
     rng = random.Random(seed + 1)
     with db.connect(path) as conn:
@@ -379,6 +432,7 @@ def seed_database(db_path: Path | None = None, now: datetime | None = None, seed
         conn.executemany(
             "INSERT INTO users(username, name, role, password_hash, technician_id) VALUES (?, ?, ?, ?, ?)",
             [(u, n, r, hash_password(DEMO_PASSWORD), t if t in tech_ids else None) for u, n, r, t in DEMO_USERS])
+    os.replace(path, final)
     return {"orders": len(data["orders"]), "items": len(data["items"])}
 
 

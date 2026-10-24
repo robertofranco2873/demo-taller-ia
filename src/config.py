@@ -26,6 +26,14 @@ STATUSES = ["recibida", "en proceso", "terminada", "entregada"]
 PENDING_STATUSES = ["recibida", "en proceso"]
 CLOSED_STATUSES = ["terminada", "entregada"]
 
+DEMO_RESET_HOURS = 24  # en modo demo la base se restablece al arrancar y cada 24 h
+
+
+def demo_mode() -> bool:
+    """DEMO_MODE=true: demo pública (bloquea acciones destructivas y restablece datos). Se lee en cada llamada."""
+    return os.getenv("DEMO_MODE", "").strip().lower() in ("1", "true", "yes", "si", "sí")
+
+
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 GROQ_DEFAULT_MODEL = "qwen/qwen3.8-27b"  # llama-3.3-70b-versatile fue retirado por Groq
 GROQ_TIMEOUT_S = 60

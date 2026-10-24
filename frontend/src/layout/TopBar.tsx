@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import { Logo, LogoIcon } from "../components/Logo";
 import { Tooltip } from "../components/ui";
+import { useAppInfo } from "../lib/appInfo";
 import { useAuth } from "../lib/auth";
 import { useApi } from "../lib/hooks";
 import { AREAS, HOME_BY_ROLE, ROLE_LABEL, modulesFor, type Module } from "../lib/modules";
@@ -103,6 +104,7 @@ function ModuleLink({ m, onClick }: { m: Module; onClick?: () => void }) {
 export function TopBar({ onSearch }: { onSearch: () => void }) {
   const { user, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const { demo_mode } = useAppInfo();
   const navigate = useNavigate();
   const [drawer, setDrawer] = useState(false);
   const location = useLocation();
@@ -118,6 +120,7 @@ export function TopBar({ onSearch }: { onSearch: () => void }) {
     <>
       <div className="bg-gold-soft py-1 text-center text-[11px] font-medium text-gold">
         DEMO · AutoServicio Demo no es un negocio real · todos los datos son ficticios
+        {demo_mode && " · demo pública: los datos se restablecen cada 24 h"}
       </div>
       <header className="glass sticky top-0 z-40 rounded-none border-x-0 border-t-0">
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-2 px-3 sm:px-5">

@@ -16,6 +16,7 @@ interface Indicators {
   ordenes_pendientes: number; tendencia: { mes: string; eficiencia: number }[];
   servicios_frecuentes: { service_name: string; veces: number }[]; semanal: { semana: string; terminadas: number; eficiencia: number }[];
   meta: number;
+  regla_eficiencia: string;
 }
 
 export default function MisIndicadores() {
@@ -40,7 +41,7 @@ export default function MisIndicadores() {
       )}
       <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         <KpiCard label="Eficiencia" value={data.eficiencia} format={(v) => pct(v)} icon={Gauge} accent="purple"
-          hint="Más de 100 % = terminas más rápido que el tiempo estándar." formula="Σ horas estándar ÷ Σ horas reales" />
+          hint={`Más de 100 % = terminas más rápido que el tiempo estándar. ${data.regla_eficiencia}`} formula="Σ horas estándar ÷ Σ horas reales (tope 200 %)" />
         <KpiCard label="Órdenes terminadas" value={data.ordenes_cerradas} format={(v) => Math.round(v).toString()} icon={CheckCheck} accent="blue"
           hint="Órdenes que terminaste o ya se entregaron." />
         <KpiCard label="Utilización" value={data.utilizacion} format={(v) => pct(v)} icon={Hourglass} accent="gold"

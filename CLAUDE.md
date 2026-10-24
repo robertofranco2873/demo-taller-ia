@@ -30,5 +30,7 @@ App demo de un taller mecánico **ficticio** ("AutoServicio Demo"). V1 en Stream
 - Dependencias: `requirements.txt` (producción) y `requirements-dev.txt` (+ pytest, httpx).
 - Verificar antes de commit: `python -m pytest -q`, `npm run lint` y `npm run build` en `frontend/`.
 - Deploy: `Dockerfile` multietapa + `render.yaml` (Render, plan gratis, un solo servicio).
+- "Hoy" y "ahora" SIEMPRE con `src/clock.py` (zona `APP_TZ`); nunca `datetime.now()` ni `date.today()`.
+- `DEMO_MODE=true` (Render): bloquea acciones destructivas con `deny_in_demo(...)` y restablece la base cada 24 h.
 - `data/taller.db` no se versiona; se regenera con `python -m src.seed` (semilla 42).
 - No hacer `git add -A`: `.agents/` y `.claude/` son del usuario.

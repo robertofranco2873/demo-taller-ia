@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from api.core import ALL_ROLES, STAFF, TECNICO, bad_request, clean, records, require_roles
+from src import clock
 from src import db
 from src.orders import next_status, time_variance
 
@@ -30,7 +31,7 @@ def list_orders(status: str | None = None, q: str | None = None, technician_id: 
         df = df[df["folio"].str.lower().str.contains(ql) | df["customer"].str.lower().str.contains(ql)
                 | df["vehicle"].fillna("").str.lower().str.contains(ql)]
     df = df.sort_values("created_at", ascending=False).head(limit).copy()
-    df["vencida"] = df["status"].isin(["recibida", "en proceso"]) & (df["due_date"] < date.today())
+    df["vencida"] = df["status"].isin(["recibida", "en proceso"]) & (df["due_date"] < clock.today())
     return records(df[LIST_COLS + ["vencida"]])
 
 

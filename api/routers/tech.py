@@ -5,7 +5,8 @@ import pandas as pd
 from fastapi import APIRouter, Depends, HTTPException
 
 from api.core import TECNICO, bad_request, clean, records, require_roles
-from src import db
+from src import clock
+from src import db, kpis
 from src.analytics import technician_detail
 from src.config import PENDING_STATUSES
 from src.orders import priority
@@ -27,7 +28,7 @@ def _own_order(order_id: int, user: dict) -> dict:
 
 @router.get("/day", summary="Mis órdenes pendientes ordenadas por prioridad")
 def my_day(user: dict = tech_only):
-    today = date.today()
+    today = clock.today()
     orders = db.load_orders()
     mine = orders[(orders["technician_id"] == user["technician_id"]) & orders["status"].isin(PENDING_STATUSES)]
     items = db.load_items()
@@ -83,21 +84,24 @@ def finish(order_id: int, user: dict = tech_only):
     except ValueError as e:
         raise bad_request(e)
     goal = db.get_settings()["efficiency_goal"]
-    return {**result, "goal": goal, "goal_reached": result["efficiency"] >= goal}
+    # Un registro excluido (tiempo < 25 % del estándar) no celebra la meta.
+    return {**result, "goal": goal, "goal_reached": result["counts_for_kpis"] and result["efficiency"] >= goal}
 
 
 @router.get("/indicators", summary="Mis indicadores personales")
 def indicators(user: dict = tech_only):
     orders, items = db.load_orders(), db.load_items()
     start = orders["created_at"].min().date()
-    d = technician_detail(orders, items, user["technician"], start, date.today())
+    d = technician_detail(orders, items, user["technician"], start, clock.today())
     mine = orders[orders["technician_id"] == user["technician_id"]]
     weekly = []
     done = mine.dropna(subset=["finished_at"])
+    done = done[done["actual_hours"] >= kpis.MIN_VALID_RATIO * done["std_hours"]]
     if len(done):
         g = done.assign(semana=done["finished_at"].dt.to_period("W-SUN").dt.start_time.dt.date).groupby("semana")
         weekly = [{"semana": k, "terminadas": int(len(v)),
-                   "eficiencia": float(v["std_hours"].sum() / v["actual_hours"].sum())}
+                   "eficiencia": kpis.cap_efficiency(v["std_hours"].sum() / v["actual_hours"].sum())}
                   for k, v in g if v["actual_hours"].sum() > 0][-12:]
     return clean({**d, "servicios_frecuentes": records(d["servicios_frecuentes"]), "semanal": weekly,
+                  "regla_eficiencia": kpis.EFFICIENCY_RULE,
                   "meta": db.get_settings()["efficiency_goal"]})
