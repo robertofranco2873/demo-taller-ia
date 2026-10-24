@@ -1,0 +1,246 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Tailwind lee los design tokens: bg-surface, text-muted, rounded-lg, shadow-md, etc. */
+@theme inline {
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-solid: var(--surface-solid);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-secondary: var(--text-secondary);
+  --color-muted: var(--text-muted);
+  --color-on-accent: var(--text-on-accent);
+  --color-accent: var(--accent);
+  --color-accent-2: var(--accent-2);
+  --color-accent-soft: var(--accent-soft);
+  --color-link: var(--link);
+  --color-gold: var(--gold-700);
+  --color-gold-soft: var(--gold-100);
+  --color-gold-vivid: var(--gold-vivid);
+  --color-blue: var(--blue-700);
+  --color-blue-soft: var(--blue-100);
+  --color-purple: var(--purple-700);
+  --color-purple-soft: var(--purple-100);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+  --shadow-glow: var(--glow);
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--text);
+  background: var(--bg-gradient);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: var(--purple-300);
+  color: #1e2033;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+@layer components {
+  /* Vidrio esmerilado ligero */
+  .glass {
+    background: var(--surface);
+    backdrop-filter: blur(var(--blur)) saturate(140%);
+    -webkit-backdrop-filter: blur(var(--blur)) saturate(140%);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Tarjeta con elevación y brillo al pasar el mouse */
+  .card-hover {
+    position: relative;
+    transition:
+      transform var(--duration-base) var(--ease-out),
+      box-shadow var(--duration-base) var(--ease-out),
+      background var(--duration-base);
+  }
+  .card-hover::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(400px circle at var(--mx, 50%) var(--my, 0%), rgba(255, 255, 255, 0.35), transparent 40%);
+    opacity: 0;
+    transition: opacity var(--duration-base);
+  }
+  [data-theme="dark"] .card-hover::after {
+    background: radial-gradient(400px circle at var(--mx, 50%) var(--my, 0%), rgba(192, 174, 242, 0.12), transparent 40%);
+  }
+  .card-hover:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-lg);
+    background: var(--surface-hover);
+  }
+  .card-hover:hover::after {
+    opacity: 1;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface-muted) 0%, var(--border-strong) 50%, var(--surface-muted) 100%);
+    background-size: 200% 100%;
+    animation: shimmer 1.3s ease-in-out infinite;
+    border-radius: var(--radius-sm);
+  }
+
+  .field {
+    width: 100%;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-strong);
+    background: var(--surface-solid);
+    color: var(--text);
+    padding: 0.55rem 0.8rem;
+    font-size: var(--text-sm);
+    transition:
+      border-color var(--duration-fast),
+      box-shadow var(--duration-fast);
+  }
+  .field:focus {
+    outline: none;
+    border-color: var(--focus);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 25%, transparent);
+  }
+  .field-label {
+    display: block;
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    margin-bottom: 0.3rem;
+  }
+
+  .table-base {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--text-sm);
+  }
+  .table-base th {
+    text-align: left;
+    font-weight: var(--weight-medium);
+    color: var(--text-secondary);
+    font-size: var(--text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border-strong);
+    white-space: nowrap;
+  }
+  .table-base td {
+    padding: 0.6rem 0.75rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+  .table-base tbody tr {
+    transition: background var(--duration-fast);
+  }
+  .table-base tbody tr:hover {
+    background: var(--surface-muted);
+  }
+  .num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+/* Animaciones de los loaders temáticos */
+.ld-spin {
+  animation: ld-spin 2.4s linear infinite;
+}
+.ld-spin-rev {
+  animation: ld-spin 1.6s linear infinite reverse;
+}
+.ld-tighten {
+  animation: ld-tighten 1.4s var(--ease-out) infinite;
+}
+.ld-piston {
+  animation: ld-piston 0.9s ease-in-out infinite alternate;
+}
+.ld-lift {
+  animation: ld-lift 1.8s ease-in-out infinite alternate;
+}
+@keyframes ld-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes ld-tighten {
+  0% {
+    transform: rotate(-40deg);
+  }
+  60%,
+  100% {
+    transform: rotate(50deg);
+  }
+}
+@keyframes ld-piston {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(22px);
+  }
+}
+@keyframes ld-lift {
+  from {
+    transform: translateY(20px);
+  }
+  to {
+    transform: translateY(-28px);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
