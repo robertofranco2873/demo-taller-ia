@@ -23,3 +23,6 @@ Thumbs.db
 # Frontend
 frontend/node_modules/
 frontend/dist/
+
+# Acceso directo local (rutas absolutas de cada PC)
+*.lnk

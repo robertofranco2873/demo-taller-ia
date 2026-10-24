@@ -104,7 +104,19 @@ Sin key, estas funciones se ocultan con un aviso. Los errores 401, 404 (modelo r
 Calendario laboral: lunes a sábado, 8 h por día. Todas las fórmulas viven en `src/` como funciones
 puras con pruebas en pytest.
 
-## Correr en Windows (PowerShell)
+## Correr en Windows
+
+### Con doble clic
+
+Abre la carpeta del proyecto y haz doble clic en **`Iniciar AutoServicio.bat`**. El script:
+1. La primera vez crea el entorno de Python, instala las dependencias y compila la interfaz (tarda unos minutos; requiere Python 3.12 y Node.js).
+2. Si el puerto 8000 lo ocupa un servidor anterior de la app, lo cierra. Si lo ocupa otro programa, avisa y no lo toca.
+3. Arranca el servidor y abre el navegador en http://localhost:8000.
+
+Para detener la app, cierra la ventana negra. Si quieres un acceso directo con el logo, crea uno al
+`.bat` y elige el ícono `assets/autoservicio.ico`.
+
+### Desde PowerShell
 
 Requisitos: **Python 3.12**, **Node.js 20 o superior** y Git.
 
