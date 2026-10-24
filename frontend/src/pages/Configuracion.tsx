@@ -1,5 +1,6 @@
 import { Bot, DatabaseBackup, Download, RefreshCcw, Save, Settings as SettingsIcon, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { DemoLock } from "../components/DemoLock";
 import { Field } from "../components/fields";
 import { Button, Card, Modal, Notice, PageHeader, useToast } from "../components/ui";
 import { api } from "../lib/api";
@@ -78,13 +79,13 @@ export default function Configuracion() {
           <p className="mb-3 text-sm text-secondary">En Render (plan gratis) el disco es temporal: descarga un respaldo y restáuralo cuando quieras. También puedes apuntar <code>TALLER_DB_PATH</code> a un disco persistente.</p>
           <div className="flex flex-wrap gap-2">
             <Button icon={Download} onClick={() => api.download("/api/admin/backup", `taller_${new Date().toISOString().slice(0, 10)}.db`).catch((e) => toast(e.message, "danger"))}>Descargar respaldo</Button>
-            <Button icon={Upload} onClick={() => file.current?.click()}>Restaurar respaldo</Button>
+            <DemoLock><Button icon={Upload} onClick={() => file.current?.click()}>Restaurar respaldo</Button></DemoLock>
             <input ref={file} type="file" accept=".db,.sqlite" className="hidden" onChange={(e) => e.target.files?.[0] && restore(e.target.files[0])} />
           </div>
         </Card>
         <Card title="Datos de demostración">
           <p className="mb-3 text-sm text-secondary">Borra todo y genera de nuevo ~6 meses de datos ficticios (semilla 42), con los usuarios demo.</p>
-          <Button variant="danger" icon={RefreshCcw} onClick={() => setConfirm(true)}>Regenerar datos</Button>
+          <DemoLock><Button variant="danger" icon={RefreshCcw} onClick={() => setConfirm(true)}>Regenerar datos</Button></DemoLock>
         </Card>
       </div>
       <Modal open={confirm} onClose={() => setConfirm(false)} title="¿Regenerar todos los datos?">

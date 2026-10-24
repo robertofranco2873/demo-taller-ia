@@ -7,6 +7,7 @@ técnico, esperas por refacciones (retrasos) y algunas anomalías de tiempo.
 Uso:  python -m src.seed   (borra y regenera data/taller.db)
 """
 import math
+import os
 import random
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -293,10 +294,16 @@ def _iso(value):
 
 
 def seed_database(db_path: Path | None = None, now: datetime | None = None, seed: int = SEED) -> dict:
-    """Borra la base (si existe) y la llena con catálogo y órdenes ficticias."""
+    """Genera la base con catálogo y órdenes ficticias y reemplaza la anterior.
+
+    Se construye en un archivo temporal y luego se reemplaza de forma atómica, para que una
+    regeneración (p. ej. el restablecimiento diario del modo demo) no deje la base a medias.
+    """
     from src import db
 
-    path = Path(db_path or config.DB_PATH)
+    final = Path(db_path or config.DB_PATH)
+    final.parent.mkdir(parents=True, exist_ok=True)
+    path = final.with_name(final.name + ".tmp")
     if path.exists():
         path.unlink()
     db.init_schema(path)
@@ -379,6 +386,7 @@ def seed_database(db_path: Path | None = None, now: datetime | None = None, seed
         conn.executemany(
             "INSERT INTO users(username, name, role, password_hash, technician_id) VALUES (?, ?, ?, ?, ?)",
             [(u, n, r, hash_password(DEMO_PASSWORD), t if t in tech_ids else None) for u, n, r, t in DEMO_USERS])
+    os.replace(path, final)
     return {"orders": len(data["orders"]), "items": len(data["items"])}
 
 

@@ -8,14 +8,15 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
-from api.core import ADMIN, STAFF, bad_request, clean, records, require_roles
+from api.core import ADMIN, STAFF, bad_request, clean, deny_in_demo, records, require_roles
 from src import config, db
 from src.inventory import inventory_table
 from src.security import ROLE_LABELS, hash_password
-from src.seed import seed_database
+from src.seed import DEMO_USERS, seed_database
 
 router = APIRouter(prefix="/api", tags=["Administración e inventario"])
 admin_only = Depends(require_roles(ADMIN))
+DEMO_USERNAMES = {u for u, *_ in DEMO_USERS}
 
 
 # ---------- inventario ----------
@@ -95,6 +96,16 @@ def create_user(body: UserIn, _: dict = admin_only):
 
 @router.put("/users/{user_id}", summary="Editar usuario")
 def update_user(user_id: int, body: UserUpdate, user: dict = admin_only):
+    current = db.get_user(user_id)
+    if current is None:
+        raise HTTPException(404, "Usuario no encontrado.")
+    if body.password:
+        deny_in_demo("cambiar contraseñas")
+    if not body.active and current["active"]:
+        deny_in_demo("desactivar usuarios")
+    if current["username"] in DEMO_USERNAMES and (body.role != current["role"]
+                                                  or body.technician_id != current["technician_id"]):
+        deny_in_demo("cambiar el rol de los usuarios demo")
     if user_id == user["id"] and (body.role != "admin" or not body.active):
         raise HTTPException(400, "No puedes quitarte el rol de administrador ni desactivarte.")
     try:
@@ -107,6 +118,7 @@ def update_user(user_id: int, body: UserUpdate, user: dict = admin_only):
 
 @router.delete("/users/{user_id}", summary="Eliminar usuario")
 def delete_user(user_id: int, user: dict = admin_only):
+    deny_in_demo("borrar usuarios")
     if user_id == user["id"]:
         raise HTTPException(400, "No puedes eliminar tu propio usuario.")
     db.delete_user(user_id)
@@ -138,6 +150,7 @@ def put_settings(body: SettingsIn, _: dict = admin_only):
 
 @router.post("/admin/reseed", summary="Regenerar los datos ficticios (borra todo)")
 def reseed(_: dict = admin_only):
+    deny_in_demo("regenerar los datos")
     return seed_database()
 
 
@@ -158,6 +171,7 @@ def backup(_: dict = admin_only):
 
 @router.post("/admin/restore", summary="Restaurar la base desde un respaldo")
 async def restore(file: UploadFile = File(...), _: dict = admin_only):
+    deny_in_demo("restaurar la base")
     data = await file.read()
     if not data.startswith(b"SQLite format 3\x00"):
         raise HTTPException(400, "El archivo no es una base SQLite válida.")

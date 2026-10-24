@@ -56,6 +56,16 @@ def require_roles(*roles: str):
     return checker
 
 
+DEMO_BLOCKED = "Desactivado en la demo pública: {accion}. Los datos se restablecen cada 24 h."
+
+
+def deny_in_demo(accion: str) -> None:
+    """En modo demo (DEMO_MODE=true) bloquea acciones destructivas con un 403 amable."""
+    from src.config import demo_mode
+    if demo_mode():
+        raise HTTPException(status.HTTP_403_FORBIDDEN, DEMO_BLOCKED.format(accion=accion))
+
+
 def bad_request(e: Exception) -> HTTPException:
     return HTTPException(status.HTTP_400_BAD_REQUEST, str(e))
 
