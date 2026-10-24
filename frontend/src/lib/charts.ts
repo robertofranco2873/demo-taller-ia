@@ -1,0 +1,144 @@
+import type { EChartsOption } from "echarts";
+import { axisStyle, baseOption, type ChartColors } from "./chartTheme";
+
+/** Barras verticales simples (una serie). colors opcional por barra (p. ej. sobrecarga en rojo). */
+export function barOption(c: ChartColors, opts: {
+  categories: string[];
+  values: number[];
+  name: string;
+  format: (v: number) => string;
+  colors?: string[];
+  refLine?: { value: number; label: string };
+  labels?: boolean;
+  rotate?: number;
+  horizontal?: boolean;
+}): EChartsOption {
+  const cat = { type: "category" as const, data: opts.categories, ...axisStyle(c),
+    axisLabel: { ...axisStyle(c).axisLabel, rotate: opts.rotate ?? 0, interval: 0, width: 110, overflow: "truncate" as const } };
+  const val = { type: "value" as const, ...axisStyle(c), axisLabel: { ...axisStyle(c).axisLabel, formatter: (v: number) => opts.format(v) } };
+  return {
+    ...baseOption(c),
+    xAxis: opts.horizontal ? val : cat,
+    yAxis: opts.horizontal ? { ...cat, inverse: true } : val,
+    series: [{
+      type: "bar",
+      name: opts.name,
+      barMaxWidth: 46,
+      data: opts.values.map((v, i) => ({ value: v, itemStyle: { color: opts.colors?.[i] ?? c.series[0], borderRadius: opts.horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0] } })),
+      label: opts.labels ? { show: true, position: opts.horizontal ? "right" : "top", color: c.text, fontSize: 11, formatter: (p: { value: unknown }) => opts.format(Number(p.value)) } : undefined,
+      emphasis: { itemStyle: { shadowBlur: 12, shadowColor: "rgba(0,0,0,.18)" } },
+      markLine: opts.refLine ? { symbol: "none", silent: true, lineStyle: { color: c.ref, type: "dashed" }, label: { formatter: opts.refLine.label, color: c.muted, position: "insideEndTop" }, data: [{ yAxis: opts.horizontal ? undefined : opts.refLine.value, xAxis: opts.horizontal ? opts.refLine.value : undefined }] } : undefined,
+    }],
+    tooltip: { ...baseOption(c).tooltip, formatter: (p: unknown) => { const q = p as { name: string; value: number }; return `<b>${q.name}</b><br/>${opts.name}: ${opts.format(q.value)}`; } },
+  };
+}
+
+/** Línea de tendencia con meta opcional. */
+export function trendOption(c: ChartColors, opts: {
+  categories: string[];
+  values: (number | null)[];
+  name: string;
+  format: (v: number) => string;
+  goal?: { value: number; label: string };
+  area?: boolean;
+}): EChartsOption {
+  return {
+    ...baseOption(c),
+    tooltip: { ...baseOption(c).tooltip, trigger: "axis", valueFormatter: (v: unknown) => (v == null ? "—" : opts.format(Number(v))) },
+    xAxis: { type: "category", data: opts.categories, boundaryGap: false, ...axisStyle(c) },
+    yAxis: { type: "value", scale: true, ...axisStyle(c), axisLabel: { ...axisStyle(c).axisLabel, formatter: (v: number) => opts.format(v) } },
+    series: [{
+      type: "line", name: opts.name, data: opts.values, smooth: true, symbolSize: 8, connectNulls: true,
+      lineStyle: { width: 2.5, color: c.series[0] }, itemStyle: { color: c.series[0] },
+      areaStyle: opts.area ? { color: { type: "linear", x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: `${c.series[0]}55` }, { offset: 1, color: `${c.series[0]}05` }] } } : undefined,
+      markLine: opts.goal ? { symbol: "none", silent: true, lineStyle: { color: c.series[1], type: "dashed", width: 1.5 }, label: { formatter: opts.goal.label, color: c.muted, position: "insideEndTop" }, data: [{ yAxis: opts.goal.value }] } : undefined,
+    }],
+  };
+}
+
+/** Pareto: barras = % de cada categoría, línea = % acumulado; ambos en el mismo eje 0-100 %. */
+export function paretoOption(c: ChartColors, rows: { name: string; pct: number; cum: number; classA: boolean; value: string }[]): EChartsOption {
+  return {
+    ...baseOption(c),
+    legend: { ...baseOption(c).legend, data: ["% del total", "% acumulado"] },
+    tooltip: {
+      ...baseOption(c).tooltip, trigger: "axis",
+      formatter: (ps: unknown) => {
+        const arr = ps as { dataIndex: number }[];
+        const r = rows[arr[0].dataIndex];
+        return `<b>${r.name}</b><br/>${r.value}<br/>% del total: ${(r.pct * 100).toFixed(1)} %<br/>Acumulado: ${(r.cum * 100).toFixed(1)} %<br/><i>Clic para ver detalle</i>`;
+      },
+    },
+    grid: { ...baseOption(c).grid, bottom: 4 },
+    xAxis: { type: "category", data: rows.map((r) => r.name), ...axisStyle(c), axisLabel: { ...axisStyle(c).axisLabel, rotate: 40, interval: 0, width: 120, overflow: "truncate" } },
+    yAxis: { type: "value", max: 1, ...axisStyle(c), axisLabel: { ...axisStyle(c).axisLabel, formatter: (v: number) => `${Math.round(v * 100)} %` } },
+    series: [
+      { type: "bar", name: "% del total", barMaxWidth: 34,
+        data: rows.map((r) => ({ value: r.pct, itemStyle: { color: r.classA ? c.series[0] : c.light, borderRadius: [4, 4, 0, 0] } })),
+        emphasis: { itemStyle: { color: c.series[2] } } },
+      { type: "line", name: "% acumulado", data: rows.map((r) => r.cum), symbolSize: 7, lineStyle: { width: 2, color: c.series[1] }, itemStyle: { color: c.series[1] },
+        markLine: { symbol: "none", silent: true, lineStyle: { color: c.ref, type: "dashed" }, label: { formatter: "80 %", color: c.muted }, data: [{ yAxis: 0.8 }] } },
+    ],
+  };
+}
+
+/** Gráfica de control: puntos, LC, LSC, LIC; señales anormales marcadas en rojo. */
+export function controlOption(c: ChartColors, opts: {
+  values: number[];
+  signals: boolean[];
+  labels: string[];
+  limits: { lc: number; lsc: number; lic: number };
+  name: string;
+  unit?: string;
+}): EChartsOption {
+  const unit = opts.unit ?? " h";
+  const ml = (v: number, label: string, color: string, type: "solid" | "dashed") =>
+    ({ yAxis: v, lineStyle: { color, type, width: 1.5 }, label: { formatter: `${label} ${v.toFixed(2)}${unit}`, color: c.muted, position: "insideEndTop" as const } });
+  return {
+    ...baseOption(c),
+    tooltip: { ...baseOption(c).tooltip, trigger: "axis", formatter: (ps: unknown) => {
+      const i = (ps as { dataIndex: number }[])[0].dataIndex;
+      return `${opts.labels[i]}<br/><b>${opts.values[i].toFixed(2)}${unit}</b>${opts.signals[i] ? '<br/><span style="color:' + c.bad + '">⚠ señal anormal</span>' : ""}`;
+    } },
+    xAxis: { type: "category", data: opts.values.map((_, i) => String(i + 1)), ...axisStyle(c), name: "Muestra", nameLocation: "middle", nameGap: 26 },
+    yAxis: { type: "value", scale: true, ...axisStyle(c) },
+    series: [{
+      type: "line", name: opts.name, data: opts.values.map((v, i) => ({ value: v, symbol: opts.signals[i] ? "diamond" : "circle", symbolSize: opts.signals[i] ? 13 : 7, itemStyle: { color: opts.signals[i] ? c.bad : c.series[0] } })),
+      lineStyle: { color: c.series[0], width: 2 },
+      markLine: { symbol: "none", silent: true, data: [ml(opts.limits.lsc, "LSC", c.bad, "dashed"), ml(opts.limits.lc, "LC", c.ref, "solid"), ml(opts.limits.lic, "LIC", c.bad, "dashed")] },
+    }],
+  };
+}
+
+/** Gantt (serie custom): una fila por técnico, barra por orden, roja si sale tarde. */
+export function ganttOption(c: ChartColors, rows: { resource: string; folio: string; start: number; end: number; late: boolean; bay: string }[], resources: string[]): EChartsOption {
+  return {
+    ...baseOption(c),
+    tooltip: { ...baseOption(c).tooltip, formatter: (p: unknown) => {
+      const d = (p as { data: { raw: (typeof rows)[number] } }).data.raw;
+      const f = (t: number) => new Date(t).toLocaleString("es-MX", { weekday: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+      return `<b>${d.folio}</b> · ${d.bay}<br/>${f(d.start)} → ${f(d.end)}<br/>${d.late ? '<span style="color:' + c.bad + '">⚠ Tarde</span>' : "A tiempo"}`;
+    } },
+    grid: { left: 8, right: 16, top: 16, bottom: 40, containLabel: true },
+    dataZoom: [{ type: "inside", filterMode: "weakFilter" }, { type: "slider", height: 16, bottom: 6, filterMode: "weakFilter" }],
+    xAxis: { type: "time", ...axisStyle(c) },
+    yAxis: { type: "category", data: resources, inverse: true, ...axisStyle(c), axisLabel: { ...axisStyle(c).axisLabel, width: 130, overflow: "truncate" } },
+    series: [{
+      type: "custom",
+      renderItem: ((params: unknown, api: unknown) => {
+        const a = api as { value: (i: number) => number; coord: (v: [number, number]) => [number, number]; size: (v: [number, number]) => [number, number]; style: () => object };
+        const cat = a.value(0);
+        const start = a.coord([a.value(1), cat]);
+        const end = a.coord([a.value(2), cat]);
+        const h = a.size([0, 1])[1] * 0.56;
+        const p = params as { coordSys: { x: number; y: number; width: number; height: number } };
+        const x = Math.max(start[0], p.coordSys.x);
+        const w = Math.min(end[0], p.coordSys.x + p.coordSys.width) - x;
+        if (w <= 0) return null;
+        return { type: "rect", shape: { x, y: start[1] - h / 2, width: w, height: h, r: 4 }, style: { ...a.style(), stroke: c.surface, lineWidth: 1.5 } };
+      }) as never,
+      encode: { x: [1, 2], y: 0 },
+      data: rows.map((r) => ({ value: [resources.indexOf(r.resource), r.start, r.end], raw: r, itemStyle: { color: r.late ? c.bad : c.series[0] } })),
+    }],
+  };
+}

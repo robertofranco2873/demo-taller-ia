@@ -7,7 +7,7 @@ import Login from "./pages/Login";
 import { Forbidden, NotFound } from "./pages/Errors";
 
 // Cada página se descarga solo cuando se visita (más ligero en celular).
-const pages: Record<string, React.LazyExoticComponent<() => React.JSX.Element>> = {
+const pages: Record<string, React.LazyExoticComponent<React.ComponentType>> = {
   "mi-dia": lazy(() => import("./pages/MiDia")),
   "mis-indicadores": lazy(() => import("./pages/MisIndicadores")),
   servicios: lazy(() => import("./pages/Servicios")),

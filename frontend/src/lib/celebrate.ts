@@ -23,3 +23,14 @@ export function celebrateGoal() {
   };
   frame();
 }
+
+/** Celebra la meta solo una vez por sesión y por clave (evita confeti en cada visita). */
+export function celebrateGoalOnce(key: string) {
+  try {
+    if (sessionStorage.getItem(`meta-${key}`)) return;
+    sessionStorage.setItem(`meta-${key}`, "1");
+  } catch {
+    /* sin almacenamiento: celebra igual */
+  }
+  celebrateGoal();
+}

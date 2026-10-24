@@ -56,10 +56,10 @@ export function baseOption(c: ChartColors) {
     color: c.series,
     textStyle: { fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif", color: c.muted },
     animationDuration: 700,
-    animationEasing: "cubicOut",
+    animationEasing: "cubicOut" as const,
     grid: { left: 8, right: 16, top: 36, bottom: 8, containLabel: true },
     tooltip: {
-      trigger: "item",
+      trigger: "item" as "item" | "axis",
       backgroundColor: c.surface,
       borderColor: c.border,
       borderWidth: 1,
