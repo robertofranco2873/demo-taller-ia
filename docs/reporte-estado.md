@@ -245,7 +245,7 @@ La key real de Groq vive solo en `.env`, que git ignora. Nunca se subió.
 | README claro con aviso de datos ficticios | **Sí** | Aviso al inicio y al final; sección «Ver la demo en línea», modo demo, secuenciación nueva (prioridades, mover órdenes, Gantt por días), regla de eficiencia, variables de entorno, enlaces a Python, Node.js y Git, y pasos de Render |
 | Usuarios demo visibles | **Sí** | Botón por rol en el login y tabla en el README; en la demo pública no se pueden borrar ni cambiar su contraseña o rol |
 | Repo público listo | **Sí** | Descripción actualizada (ya no dice Streamlit), 13 topics (fastapi, react, typescript, industrial-engineering, ai, groq, portfolio, …), rama vieja `feature/v2-web` borrada, commits nuevos con correo privado `…@users.noreply.github.com` |
-| Deploy en línea (URL) | **Pendiente (lo haces tú)** | Blueprint listo (`render.yaml`, plan gratuito, `DEMO_MODE=true`, `APP_TZ`, `JWT_SECRET` generado, `GROQ_API_KEY` secreta). Arranque de producción simulado sin Docker: ✅. Falta crear el servicio en Render y poner la URL real en el README |
+| Deploy en línea (URL) | **Sí** · https://demo-taller-ia.onrender.com (Render, plan free, Live) | Blueprint listo (`render.yaml`, plan gratuito, `DEMO_MODE=true`, `APP_TZ`, `JWT_SECRET` generado, `GROQ_API_KEY` secreta). Arranque de producción simulado sin Docker: ✅. Falta crear el servicio en Render y poner la URL real en el README |
 | Capturas de pantalla o GIF | **Sí** | 12 capturas (Secuenciación renovada, sin barra superpuesta) + `docs/capturas/recorrido.gif` (10 cuadros, 606 KB, 3 roles) |
 | Guion de video | **Sí** | `docs/guion-video.md` (90 s, tres roles, con tiempos y voz) |
 

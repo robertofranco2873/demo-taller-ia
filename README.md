@@ -16,7 +16,7 @@ La IA (Groq) es **opcional**: sin API key la app funciona completa.
 
 ## Ver la demo en línea
 
-👉 **https://demo-taller-ia.onrender.com** *(URL pendiente de confirmar al crear el servicio en Render)*
+👉 **https://demo-taller-ia.onrender.com**
 
 Entra con un usuario demo (todas las contraseñas son `demo123`): **gerente**, **recepcion** o **tecnico**.
 
