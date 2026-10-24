@@ -39,21 +39,55 @@ def average_ticket(orders: pd.DataFrame) -> float:
     return float(df["total"].mean()) if not df.empty else 0.0
 
 
+# Regla de eficiencia (se documenta en el globo del KPI):
+# 1) Se excluyen registros con tiempo real < 25 % del estándar (casi siempre, cronómetro olvidado).
+# 2) La eficiencia mostrada se limita a 0-200 %.
+MIN_VALID_RATIO = 0.25
+EFFICIENCY_CAP = 2.0
+EFFICIENCY_RULE = ("Se excluyen los registros con tiempo real menor al 25 % del estándar (suelen ser un cronómetro "
+                   "olvidado) y el resultado se limita a 0-200 %.")
+
+
+def cap_efficiency(value: float | None) -> float | None:
+    """Limita la eficiencia al rango 0-200 %."""
+    if value is None or value != value:
+        return None
+    return min(max(float(value), 0.0), EFFICIENCY_CAP)
+
+
+def is_valid_time(std_hours: float, actual_hours: float | None) -> bool:
+    if actual_hours is None or actual_hours != actual_hours or actual_hours <= 0:
+        return False
+    return actual_hours >= MIN_VALID_RATIO * std_hours
+
+
+def valid_times(items: pd.DataFrame) -> pd.DataFrame:
+    """Registros con tiempo real utilizable para eficiencia (excluye < 25 % del estándar)."""
+    df = items.dropna(subset=["actual_hours"])
+    return df[(df["actual_hours"] > 0) & (df["actual_hours"] >= MIN_VALID_RATIO * df["std_hours"])]
+
+
+def ratio_efficiency(df: pd.DataFrame) -> float | None:
+    """Σ estándar ÷ Σ real sobre registros válidos, con tope."""
+    v = valid_times(df)
+    act = float(v["actual_hours"].sum())
+    return cap_efficiency(float(v["std_hours"].sum()) / act) if act > 0 else None
+
+
 def efficiency(std_hours: float, actual_hours: float) -> float:
     """Eficiencia = tiempo estándar / tiempo real."""
     if actual_hours <= 0:
         raise ValueError("El tiempo real debe ser positivo.")
-    return std_hours / actual_hours
+    return cap_efficiency(std_hours / actual_hours)
 
 
 def efficiency_by_technician(items: pd.DataFrame) -> pd.DataFrame:
     """Eficiencia por técnico con los servicios que ya tienen tiempo real registrado."""
-    df = items.dropna(subset=["actual_hours"])
-    df = df[df["actual_hours"] > 0]
+    df = valid_times(items)
     if df.empty:
         return pd.DataFrame(columns=["technician", "std_hours", "actual_hours", "eficiencia"])
     out = df.groupby("technician")[["std_hours", "actual_hours"]].sum().reset_index()
-    out["eficiencia"] = out["std_hours"] / out["actual_hours"]
+    out["eficiencia"] = (out["std_hours"] / out["actual_hours"]).clip(0, EFFICIENCY_CAP)
     return out.sort_values("eficiencia", ascending=False).reset_index(drop=True)
 
 

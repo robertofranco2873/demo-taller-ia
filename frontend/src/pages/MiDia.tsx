@@ -44,10 +44,12 @@ function OrderCard({ order, fetchedAt, onChange, onSheet }: { order: DayOrder; f
   async function act(action: "start" | "pause" | "finish") {
     setBusy(action);
     try {
-      const res = await api.post<{ efficiency?: number; goal_reached?: boolean; goal?: number }>(`/api/me/orders/${order.id}/${action}`);
+      const res = await api.post<{ efficiency?: number; goal_reached?: boolean; goal?: number; counts_for_kpis?: boolean }>(`/api/me/orders/${order.id}/${action}`);
       if (action === "finish") {
         celebrateOrder();
-        toast(`¡${order.folio} terminada! Eficiencia ${pct(res.efficiency ?? null)}.`);
+        toast(res.counts_for_kpis === false
+          ? `${order.folio} terminada. El tiempo registrado es menor al 25 % del estándar: no cuenta para tus indicadores.`
+          : `¡${order.folio} terminada! Eficiencia ${pct(res.efficiency ?? null)}.`, res.counts_for_kpis === false ? "info" : "success");
         if (res.goal_reached) {
           setTimeout(celebrateGoal, 500);
           toast(`🏆 Superaste la meta de eficiencia (${pct(res.goal ?? null)}).`, "info");

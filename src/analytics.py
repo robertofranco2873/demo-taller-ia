@@ -14,8 +14,9 @@ KPI_DEFINITIONS = {
                "explicacion": "Cuánto gasta en promedio un cliente por visita."},
     "lead_time": {"nombre": "Lead time promedio", "formula": "Promedio de (fecha de entrega − fecha de recepción)",
                   "explicacion": "Días que el auto pasa en el taller desde que llega hasta que se entrega."},
-    "eficiencia": {"nombre": "Eficiencia del taller", "formula": "Σ horas estándar ÷ Σ horas reales",
-                   "explicacion": "Más de 100 % = se trabaja más rápido que el estándar del estudio de tiempos."},
+    "eficiencia": {"nombre": "Eficiencia del taller", "formula": "Σ horas estándar ÷ Σ horas reales (tope 200 %)",
+                   "explicacion": "Más de 100 % = se trabaja más rápido que el estándar del estudio de tiempos. "
+                                  + kpis.EFFICIENCY_RULE},
     "utilizacion": {"nombre": "Utilización de bahías",
                     "formula": "Σ horas reales usadas ÷ (bahías × días laborables × 8 h)",
                     "explicacion": "Qué parte del tiempo disponible de las bahías se usó."},
@@ -52,7 +53,7 @@ def monthly_kpis(orders: pd.DataFrame, items: pd.DataFrame, n_bays: int) -> pd.D
             "ingresos": float(closed["total"].sum()),
             "ticket": float(closed["total"].mean()) if len(closed) else 0.0,
             "lead_time": kpis.average_lead_time_days(grp),
-            "eficiencia": float(done["std_hours"].sum() / done["actual_hours"].sum()) if len(done) else None,
+            "eficiencia": kpis.ratio_efficiency(done),
             "utilizacion": float(grp["actual_hours"].fillna(0).sum() / cap) if cap else 0.0,
         })
     return pd.DataFrame(rows)
@@ -104,19 +105,19 @@ def technician_detail(orders: pd.DataFrame, items: pd.DataFrame, technician: str
                       start: date, end: date) -> dict:
     o = orders[orders["technician"] == technician]
     i = items[items["technician"] == technician]
-    done = i[i["actual_hours"].notna()]
+    done = kpis.valid_times(i)
     hours = float(o["actual_hours"].fillna(0).sum())
     cap = available_hours(start, end, resources=1)
     trend = []
     if len(done):
         g = done.assign(mes=_month(done["created_at"])).groupby("mes")[["std_hours", "actual_hours"]].sum()
-        trend = [{"mes": m.strftime("%Y-%m"), "eficiencia": float(r.std_hours / r.actual_hours)}
+        trend = [{"mes": m.strftime("%Y-%m"), "eficiencia": kpis.cap_efficiency(r.std_hours / r.actual_hours)}
                  for m, r in g.iterrows()]
     top = (i.groupby("service_name").size().sort_values(ascending=False).head(6)
            .rename("veces").reset_index()) if len(i) else pd.DataFrame(columns=["service_name", "veces"])
     return {
         "technician": technician,
-        "eficiencia": float(done["std_hours"].sum() / done["actual_hours"].sum()) if len(done) else None,
+        "eficiencia": kpis.ratio_efficiency(done),
         "utilizacion": hours / cap if cap else 0.0,
         "horas_reales": hours, "horas_disponibles": cap,
         "ordenes_cerradas": int(o["status"].isin(CLOSED_STATUSES).sum()),
@@ -141,9 +142,11 @@ def kpi_detail(key: str, orders: pd.DataFrame, items: pd.DataFrame, bays: list[s
         calc = {"valor": kpis.average_lead_time_days(orders),
                 "partes": {"Órdenes entregadas": int(orders["delivered_at"].notna().sum())}}
     elif key == "eficiencia":
-        std, act = float(done["std_hours"].sum()), float(done["actual_hours"].sum())
-        calc = {"valor": std / act if act else None,
-                "partes": {"Horas estándar": round(std, 1), "Horas reales": round(act, 1)}}
+        valid = kpis.valid_times(done)
+        std, act = float(valid["std_hours"].sum()), float(valid["actual_hours"].sum())
+        calc = {"valor": kpis.ratio_efficiency(done),
+                "partes": {"Horas estándar": round(std, 1), "Horas reales": round(act, 1),
+                           "Registros excluidos (< 25 % del estándar)": int(len(done) - len(valid))}}
     elif key == "utilizacion":
         used = float(orders["actual_hours"].fillna(0).sum())
         cap = available_hours(start, end, resources=len(bays))
@@ -172,7 +175,7 @@ def service_detail(orders: pd.DataFrame, items: pd.DataFrame, service_id: int) -
             veces=("id", "size"), ingreso=("line_subtotal", "sum"))
         monthly = [{"mes": m.strftime("%Y-%m"), "veces": int(r.veces), "ingreso": float(r.ingreso)}
                    for m, r in g.iterrows()]
-    done = i[i["actual_hours"].notna()].copy()
+    done = kpis.valid_times(i).copy()
     done["real_unit"] = done["actual_hours"] / done["qty"]
     done["std_unit"] = done["std_hours"] / done["qty"]
     techs = pd.DataFrame(columns=["technician", "veces", "real_promedio_h", "estandar_h", "eficiencia"])
@@ -180,7 +183,7 @@ def service_detail(orders: pd.DataFrame, items: pd.DataFrame, service_id: int) -
         techs = done.groupby("technician").agg(
             veces=("id", "size"), real_promedio_h=("real_unit", "mean"), estandar_h=("std_unit", "mean"),
             std_total=("std_hours", "sum"), real_total=("actual_hours", "sum")).reset_index()
-        techs["eficiencia"] = techs["std_total"] / techs["real_total"]
+        techs["eficiencia"] = (techs["std_total"] / techs["real_total"]).clip(0, kpis.EFFICIENCY_CAP)
         techs = techs.drop(columns=["std_total", "real_total"]).sort_values("veces", ascending=False)
     return {
         "mensual": monthly, "tecnicos": techs,

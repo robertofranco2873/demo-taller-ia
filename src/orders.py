@@ -55,5 +55,5 @@ def time_variance(std_hours: float, actual_hours: float) -> dict:
     return {
         "diferencia_h": diff,
         "variacion_pct": diff / std_hours if std_hours else 0.0,
-        "eficiencia": std_hours / actual_hours if actual_hours else 0.0,
+        "eficiencia": min(std_hours / actual_hours, 2.0) if actual_hours else 0.0,  # tope 200 % (src/kpis.py)
     }

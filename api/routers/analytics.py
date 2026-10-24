@@ -44,7 +44,7 @@ def dashboard(start: date | None = None, end: date | None = None, _: dict = admi
         "kpis": {
             "ingresos": summary["ingresos_totales"], "ticket": summary["ticket_promedio"],
             "lead_time": summary["lead_time_promedio_dias"],
-            "eficiencia": float(eff["std_hours"].sum() / eff["actual_hours"].sum()) if len(eff) else None,
+            "eficiencia": kpis.ratio_efficiency(items),
             "utilizacion": float(kpis.bay_utilization(orders, bays, s, e)["utilizacion"].mean()),
             "backlog": summary["backlog_ordenes"], "backlog_horas": summary["backlog_horas_estandar"],
         },

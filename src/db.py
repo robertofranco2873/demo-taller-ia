@@ -480,7 +480,9 @@ def finish_with_timer(order_id: int, now: datetime | None = None, db_path: Path 
     split = split_actual_hours(dict(zip(items["id"].astype(int), items["std_hours"])), hours)
     advance_order(order_id, "terminada", split, now, db_path)
     std = float(items["std_hours"].sum())
-    return {"actual_hours": hours, "std_hours": std, "efficiency": std / hours}
+    from src.kpis import cap_efficiency, is_valid_time
+    return {"actual_hours": hours, "std_hours": std, "efficiency": cap_efficiency(std / hours),
+            "counts_for_kpis": is_valid_time(std, hours)}
 
 
 # ---------- inventario ----------
