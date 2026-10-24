@@ -9,6 +9,7 @@ import pandas as pd
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from src import clock
 from src import db
 
 JWT_ALGORITHM = "HS256"
@@ -97,8 +98,8 @@ def clean(obj):
 
 
 def parse_range(start: date | None, end: date | None, orders: pd.DataFrame) -> tuple[date, date]:
-    min_d = orders["created_at"].min().date() if len(orders) else date.today()
-    max_d = orders["created_at"].max().date() if len(orders) else date.today()
+    min_d = orders["created_at"].min().date() if len(orders) else clock.today()
+    max_d = orders["created_at"].max().date() if len(orders) else clock.today()
     start, end = start or min_d, end or max_d
     if end < start:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "La fecha final es anterior a la inicial.")

@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends
 
 from api.core import ADMIN, ALL_ROLES, RECEPCION, TECNICO, clean, current_user, require_roles
+from src import clock
 from src import db
 from src.capacity import weekly_load
 from src.config import PENDING_STATUSES
@@ -66,7 +67,7 @@ def search(q: str = "", user: dict = Depends(current_user)):
 
 @router.get("/notifications", summary="Avisos según el rol")
 def notifications(user: dict = Depends(require_roles(*ALL_ROLES))):
-    today = date.today()
+    today = clock.today()
     orders = db.load_orders()
     pending = orders[orders["status"].isin(PENDING_STATUSES)]
     notes = []

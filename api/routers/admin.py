@@ -9,6 +9,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.core import ADMIN, STAFF, bad_request, clean, deny_in_demo, records, require_roles
+from src import clock
 from src import config, db
 from src.inventory import inventory_table
 from src.security import ROLE_LABELS, hash_password
@@ -23,7 +24,7 @@ DEMO_USERNAMES = {u for u, *_ in DEMO_USERS}
 
 @router.get("/inventory", summary="Inventario con stock de seguridad, punto de reorden y EOQ")
 def inventory(days: int = 90, _: dict = admin_only):
-    end = date.today()
+    end = clock.today()
     start = end - timedelta(days=days)
     table = inventory_table(db.load_parts(), db.load_consumption(), start, end, db.get_settings()["service_level"])
     return clean({"rows": records(table), "service_level": db.get_settings()["service_level"],
@@ -166,7 +167,7 @@ def backup(_: dict = admin_only):
             dst.close()
         data = target.read_bytes()
     return Response(data, media_type="application/x-sqlite3",
-                    headers={"Content-Disposition": f'attachment; filename="taller_{date.today():%Y%m%d}.db"'})
+                    headers={"Content-Disposition": f'attachment; filename="taller_{clock.today():%Y%m%d}.db"'})
 
 
 @router.post("/admin/restore", summary="Restaurar la base desde un respaldo")

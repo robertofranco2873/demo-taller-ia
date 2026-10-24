@@ -12,6 +12,7 @@ import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from src import clock
 from src import config
 from src.quote import Quote, QuoteLine
 from src.time_study import standard_hours
@@ -309,7 +310,7 @@ def seed_database(db_path: Path | None = None, now: datetime | None = None, seed
     db.init_schema(path)
     from src.security import hash_password
 
-    now = now or datetime.now().replace(microsecond=0)
+    now = now or clock.now()
     data = generate(now, seed)
     rng = random.Random(seed + 1)
     with db.connect(path) as conn:

@@ -5,6 +5,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from api.core import STAFF, bad_request, require_roles
+from src import clock
 from src import db
 from src.export import quote_to_excel, quote_to_pdf
 from src.quote import Quote
@@ -60,11 +61,11 @@ def quote(body: QuoteIn, _: dict = Depends(require_roles(*STAFF))):
 def quote_excel(body: QuoteIn, _: dict = Depends(require_roles(*STAFF))):
     data = quote_to_excel(build(body), body.customer, body.vehicle)
     return Response(data, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f'attachment; filename="cotizacion_{date.today():%Y%m%d}.xlsx"'})
+                    headers={"Content-Disposition": f'attachment; filename="cotizacion_{clock.today():%Y%m%d}.xlsx"'})
 
 
 @router.post("/pdf", summary="Cotización en PDF", response_class=Response)
 def quote_pdf(body: QuoteIn, _: dict = Depends(require_roles(*STAFF))):
     data = quote_to_pdf(build(body), body.customer, body.vehicle)
     return Response(data, media_type="application/pdf",
-                    headers={"Content-Disposition": f'attachment; filename="cotizacion_{date.today():%Y%m%d}.pdf"'})
+                    headers={"Content-Disposition": f'attachment; filename="cotizacion_{clock.today():%Y%m%d}.pdf"'})

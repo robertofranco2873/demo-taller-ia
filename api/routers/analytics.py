@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from api.core import ADMIN, bad_request, clean, parse_range, records, require_roles
+from src import clock
 from src import analytics, db, kpis
 from src.capacity import weekly_load
 from src.config import PENDING_STATUSES
@@ -39,7 +40,7 @@ def dashboard(start: date | None = None, end: date | None = None, _: dict = admi
     pending = orders[orders["status"].isin(PENDING_STATUSES)].sort_values("due_date")
     return clean({
         "range": {"start": s, "end": e,
-                  "min": db.load_orders()["created_at"].min().date(), "max": date.today()},
+                  "min": db.load_orders()["created_at"].min().date(), "max": clock.today()},
         "kpis": {
             "ingresos": summary["ingresos_totales"], "ticket": summary["ticket_promedio"],
             "lead_time": summary["lead_time_promedio_dias"],
@@ -142,11 +143,11 @@ def pareto_service_orders(service_id: int, start: date | None = None, end: date 
 def capacity(week: date | None = None, _: dict = admin_only):
     orders = db.load_orders()
     techs = db.load_technicians()
-    monday = week_start(week or date.today())
+    monday = week_start(week or clock.today())
     load = weekly_load(orders, techs["name"].tolist(), monday)
     load["technician_id"] = techs["id"].values
     weeks = []
-    this = week_start(date.today())
+    this = week_start(clock.today())
     for k in range(-8, 4):
         w = this + timedelta(weeks=k)
         wl = weekly_load(orders, techs["name"].tolist(), w)
@@ -173,7 +174,7 @@ def _jobs(mode: str, technician_id: int | None, priorities: dict[str, int] | Non
         name = techs.set_index("id").loc[technician_id, "name"]
         pending = pending[pending["technician"] == name]
         names = [name]
-    now = add_work_hours(datetime.now().replace(microsecond=0), 0)
+    now = add_work_hours(clock.now(), 0)
     tech_name = dict(zip(techs["id"], techs["name"]))
     moves = {}
     for folio, tid in (reassign or {}).items():

@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from src import clock
 from src import config
 from src.orders import STATUS_TIMESTAMP, validate_transition
 from src.quote import Quote, QuoteLine
@@ -243,7 +244,7 @@ def create_order(customer: str, phone: str, vehicle: str, service_qty: dict[int,
         raise ValueError("Agrega al menos un servicio.")
     settings = get_settings(db_path)
     quote, service_ids = build_quote(service_qty, settings["labor_rate"], settings["margin_pct"], db_path)
-    created = created_at or datetime.now()
+    created = created_at or clock.now()
     with connect(db_path) as conn:
         folio = _next_folio(conn)
         cur = conn.execute(
@@ -274,7 +275,7 @@ def update_assignment(order_id: int, technician_id: int, bay_id: int, scheduled_
 def advance_order(order_id: int, new_status: str, actual_hours: dict[int, float] | None = None,
                   when: datetime | None = None, db_path: Path | None = None) -> None:
     """Avanza el estado. actual_hours = {item_id: horas reales} (obligatorio al terminar)."""
-    when = when or datetime.now()
+    when = when or clock.now()
     with connect(db_path) as conn:
         row = conn.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
         if row is None:
@@ -422,7 +423,7 @@ def delete_user(user_id: int, db_path: Path | None = None) -> None:
 
 def timer_state(order_id: int, now: datetime | None = None, db_path: Path | None = None) -> dict:
     """Horas acumuladas en la bitácora y si el cronómetro está corriendo."""
-    now = now or datetime.now()
+    now = now or clock.now()
     with connect(db_path) as conn:
         logs = conn.execute("SELECT started_at, ended_at FROM time_logs WHERE order_id=? ORDER BY id",
                             (order_id,)).fetchall()
@@ -439,7 +440,7 @@ def timer_state(order_id: int, now: datetime | None = None, db_path: Path | None
 
 
 def start_timer(order_id: int, now: datetime | None = None, db_path: Path | None = None) -> None:
-    now = now or datetime.now()
+    now = now or clock.now()
     with connect(db_path) as conn:
         row = conn.execute("SELECT status FROM orders WHERE id=?", (order_id,)).fetchone()
         if row is None:
@@ -456,7 +457,7 @@ def start_timer(order_id: int, now: datetime | None = None, db_path: Path | None
 
 
 def pause_timer(order_id: int, now: datetime | None = None, db_path: Path | None = None) -> None:
-    now = now or datetime.now()
+    now = now or clock.now()
     with connect(db_path) as conn:
         cur = conn.execute("UPDATE time_logs SET ended_at=? WHERE order_id=? AND ended_at IS NULL",
                            (now.isoformat(timespec="seconds"), order_id))
@@ -468,7 +469,7 @@ def finish_with_timer(order_id: int, now: datetime | None = None, db_path: Path 
     """Termina la orden con el tiempo del cronómetro, repartido entre servicios según su tiempo estándar."""
     from src.orders import split_actual_hours
 
-    now = now or datetime.now()
+    now = now or clock.now()
     with connect(db_path) as conn:
         has_logs = conn.execute("SELECT 1 FROM time_logs WHERE order_id=?", (order_id,)).fetchone()
     if not has_logs:
@@ -511,7 +512,7 @@ def add_movement(part_id: int, qty: float, kind: str, note: str = "",
     if kind == "entrada" and qty < 0:
         raise ValueError("Una entrada debe ser positiva.")
     signed = -abs(qty) if kind == "salida" else qty
-    now = now or datetime.now()
+    now = now or clock.now()
     with connect(db_path) as conn:
         row = conn.execute("SELECT stock FROM parts WHERE id=?", (part_id,)).fetchone()
         if row is None:

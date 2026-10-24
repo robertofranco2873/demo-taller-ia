@@ -5,6 +5,7 @@ from io import BytesIO
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 
+from src import clock
 from src.config import BUSINESS_NAME, DEMO_NOTICE
 from src.quote import Quote
 
@@ -13,7 +14,7 @@ MONEY = '"$"#,##0.00'
 
 def quote_to_excel(quote: Quote, customer: str = "", vehicle: str = "",
                    when: datetime | None = None) -> bytes:
-    when = when or datetime.now()
+    when = when or clock.now()
     wb = Workbook()
     ws = wb.active
     ws.title = "Cotización"
@@ -72,7 +73,7 @@ def quote_to_pdf(quote: Quote, customer: str = "", vehicle: str = "",
                  when: datetime | None = None) -> bytes:
     from fpdf import FPDF
 
-    when = when or datetime.now()
+    when = when or clock.now()
     pdf = FPDF(format="Letter")
     pdf.set_auto_page_break(True, margin=15)
     pdf.add_page()
